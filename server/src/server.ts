@@ -132,14 +132,18 @@ export function buildServer(options?: ServerOptions) {
     prefix: '/'
   });
 
-  // Health check endpoint
-  app.get('/health', async () => ({
+  // Health check endpoint (accessible via /health, /api/health, and serverless /api/index)
+  const healthHandler = async () => ({
     status: 'UP',
     service: 'AIOCC-Backend',
     persistence: databaseUrl ? 'PostgreSQL' : 'File/Memory',
     uptimeSec: Math.floor(process.uptime()),
     timestamp: Date.now()
-  }));
+  });
+
+  app.get('/health', healthHandler);
+  app.get('/api/health', healthHandler);
+  app.get('/api/index', healthHandler);
 
   // ==========================================
   // PARTICIPANT ROUTES

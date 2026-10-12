@@ -3,12 +3,24 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
+      "source": "/health",
+      "destination": "/api/index?__path=/health"
     },
     {
-      "source": "/health",
-      "destination": "/api/index"
+      "source": "/health/",
+      "destination": "/api/index?__path=/health"
+    },
+    {
+      "source": "/api",
+      "destination": "/api/index?__path=/health"
+    },
+    {
+      "source": "/api/",
+      "destination": "/api/index?__path=/health"
+    },
+    {
+      "source": "/api/:match*",
+      "destination": "/api/index?__path=/api/:match*"
     }
   ]
 }

@@ -1,0 +1,33 @@
+{
+  "name": "temcon-aiocc",
+  "version": "1.0.0",
+  "description": "AI Operations Control Center (AIOCC) - Human Oversight and Automation Complacency Platform",
+  "main": "server/dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node server/dist/index.js",
+    "dev": "tsx watch server/src/index.ts",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "test:scoring": "node --import tsx --test test/scoringEngine.test.ts",
+    "test:sequence": "node --import tsx --test test/sequenceGenerator.test.ts",
+    "test:e2e": "node --import tsx --test test/e2e.test.ts"
+  },
+  "keywords": [
+    "ai-oversight",
+    "automation-complacency",
+    "human-in-the-loop",
+    "experiment-platform"
+  ],
+  "author": "Vyom Vadodariya",
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/static": "^8.1.1",
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

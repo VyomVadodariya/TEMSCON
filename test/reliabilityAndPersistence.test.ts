@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { SessionStore } from '../server/src/services/sessionStore.js';
 import { computeSessionScore } from '../server/src/services/scoringEngine.js';
 
@@ -132,5 +134,49 @@ describe('Reliability, Concurrency & Persistence Tests', () => {
     assert.equal(restoredParticipant.currentQueueIndex, 2);
     assert.equal(restoredParticipant.decisions.size, 1);
     assert.equal(restoredParticipant.decisions.get('assign-1')?.decision, 'APPROVE');
+  });
+
+  it('Durable Disk Persistence: saves mutations to file and reloads seamlessly across store restarts', () => {
+    const testDir = path.resolve(process.cwd(), 'scratch');
+    if (!fs.existsSync(testDir)) fs.mkdirSync(testDir, { recursive: true });
+    const tempFile = path.resolve(testDir, `disk-persist-test-${Date.now()}.json`);
+
+    try {
+      // 1. First instance writes state to disk
+      const storeA = new SessionStore({ storagePath: tempFile });
+      storeA.createSession('DISK-COHORT', 40);
+      const { participant } = storeA.joinParticipant('DISK-COHORT', 'Operator-Disk');
+
+      storeA.submitDecision({
+        sessionCode: 'DISK-COHORT',
+        participantId: participant.id,
+        queueIndex: 1,
+        assignmentId: 'assign-1',
+        decision: 'APPROVE',
+        dwellTimeMs: 1500,
+        clientTimestamp: Date.now(),
+        idempotencyKey: 'idem-disk-1'
+      });
+      storeA.setRevealUnlocked('DISK-COHORT', true);
+
+      // Verify file was written to disk
+      assert.ok(fs.existsSync(tempFile), 'Persistence file must exist on disk');
+
+      // 2. Second instance starts up and reloads from disk file
+      const storeB = new SessionStore({ storagePath: tempFile });
+      const recoveredSession = storeB.getSession('DISK-COHORT');
+      assert.ok(recoveredSession, 'Session must be recovered');
+      assert.equal(recoveredSession.sessionCode, 'DISK-COHORT');
+      assert.equal(recoveredSession.revealUnlocked, true);
+
+      const recoveredPart = storeB.getParticipant('DISK-COHORT', participant.id);
+      assert.ok(recoveredPart, 'Participant must be recovered');
+      assert.equal(recoveredPart.alias, 'Operator-Disk');
+      assert.equal(recoveredPart.currentQueueIndex, 2);
+      assert.equal(recoveredPart.decisions.size, 1);
+      assert.equal(recoveredPart.decisions.get('assign-1')?.decision, 'APPROVE');
+    } finally {
+      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+    }
   });
 });

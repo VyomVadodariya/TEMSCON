@@ -1,0 +1,26 @@
+services:
+  aiocc-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aiocc-platform
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PRESENTER_KEY=${PRESENTER_KEY}
+      - STORAGE_FILE=/app/data/sessions.json
+    volumes:
+      - aiocc_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  aiocc_data:
+    driver: local

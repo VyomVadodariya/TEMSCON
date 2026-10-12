@@ -9,14 +9,66 @@ import {
 } from '../types.js';
 import { generateParticipantQueue } from './sequenceGenerator.js';
 import { computeSessionScore, SCORING_MATRIX } from './scoringEngine.js';
+import fs from 'node:fs';
+import path from 'node:path';
+
+export interface SessionStoreOptions {
+  storagePath?: string | null;
+}
 
 export class SessionStore {
   private sessions: Map<string, ExperimentSession> = new Map();
   private conditionCounter = 0; // For alternating balanced assignment
+  private storagePath: string | null = null;
 
-  constructor() {
-    // Seed a default ready-to-use session for instant demos
+  constructor(options?: SessionStoreOptions) {
+    const isTest = process.env.NODE_ENV === 'test' ||
+      process.argv.some(arg => arg.includes('test')) ||
+      process.execArgv.some(arg => arg.includes('test'));
+
+    if (options?.storagePath !== undefined) {
+      this.storagePath = options.storagePath;
+    } else if (process.env.STORAGE_FILE) {
+      this.storagePath = process.env.STORAGE_FILE;
+    } else if (isTest) {
+      this.storagePath = null;
+    } else {
+      this.storagePath = path.resolve(process.cwd(), 'data/sessions.json');
+    }
+
+    if (this.storagePath && fs.existsSync(this.storagePath)) {
+      try {
+        const raw = fs.readFileSync(this.storagePath, 'utf8');
+        this.importState(raw);
+      } catch (err) {
+        console.error('Failed to import existing state from', this.storagePath, err);
+      }
+    }
+
+    // Seed a default ready-to-use session for instant demos if not loaded from snapshot
+    if (!this.sessions.has('DEMO-2026')) {
+      this.createSession('DEMO-2026', 50);
+    }
+  }
+
+  private persist(): void {
+    if (!this.storagePath) return;
+    try {
+      const dir = path.dirname(this.storagePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const data = this.exportState();
+      fs.writeFileSync(this.storagePath, data, 'utf8');
+    } catch (err) {
+      console.error('Failed to persist session state to disk:', err);
+    }
+  }
+
+  public clearAll(): void {
+    this.sessions.clear();
     this.createSession('DEMO-2026', 50);
+    this.persist();
   }
 
   public createSession(sessionCode: string, scoredRequestCount = 50): ExperimentSession {
@@ -35,6 +87,7 @@ export class SessionStore {
     };
 
     this.sessions.set(normalizedCode, session);
+    this.persist();
     return session;
   }
 
@@ -85,6 +138,7 @@ export class SessionStore {
     };
 
     session.participants.set(participantId, participant);
+    this.persist();
     return { participant, session };
   }
 
@@ -216,6 +270,7 @@ export class SessionStore {
       participant.completedAt = Date.now();
     }
 
+    this.persist();
     return {
       success: true,
       isDuplicate: false,
@@ -228,6 +283,7 @@ export class SessionStore {
     if (!participant) return false;
     participant.isWithdrawn = true;
     participant.decisions.clear(); // Tombstone & scrub data
+    this.persist();
     return true;
   }
 
@@ -235,6 +291,7 @@ export class SessionStore {
     const session = this.getSession(sessionCode);
     if (!session) return false;
     session.revealUnlocked = unlocked;
+    this.persist();
     return true;
   }
 
@@ -242,6 +299,7 @@ export class SessionStore {
     const session = this.getSession(sessionCode);
     if (!session) return false;
     session.status = status;
+    this.persist();
     return true;
   }
 

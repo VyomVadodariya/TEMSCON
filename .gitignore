@@ -44,3 +44,7 @@ Thumbs.db
 scratch/
 tmp/
 temp/
+
+# Application persistence snapshots
+data/*.json
+data/*.tmp*

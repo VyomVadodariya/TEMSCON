@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: temcon-aiocc
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    disk:
+      name: aiocc-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: STORAGE_FILE
+        value: /app/data/sessions.json
+      - key: PRESENTER_KEY
+        generateValue: true

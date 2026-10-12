@@ -1,0 +1,14 @@
+node_modules
+server/dist
+dist
+build
+.git
+.gitignore
+.env
+.env.*
+data
+scratch
+tmp
+temp
+*.log
+coverage

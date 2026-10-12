@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { globalSessionStore } from './services/sessionStore.js';
+import { globalSessionStore, SessionStore } from './services/sessionStore.js';
 import { DecisionAction } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +12,9 @@ const __dirname = path.dirname(__filename);
 export interface ServerOptions {
   presenterKey?: string;
   isProduction?: boolean;
+  corsOrigin?: string | string[];
+  sessionStore?: SessionStore;
+  rateLimitEnabled?: boolean;
 }
 
 export function buildServer(options?: ServerOptions) {
@@ -27,13 +30,53 @@ export function buildServer(options?: ServerOptions) {
     throw new Error('FATAL SECURITY ERROR: PRESENTER_KEY environment variable is required in production. Application will not start without a configured presenter credential.');
   }
 
+  const sessionStore = options?.sessionStore || globalSessionStore;
+
   const app = fastify({
     logger: false, // Clean console output for tests
     trustProxy: true
   });
 
-  // Enable CORS for testing flexibility
-  app.register(cors, { origin: true });
+  // Gateway Token Bucket Rate Limiting (Phase 0.5 Spec: Burst B=350, Refill r=75 tokens/s)
+  const rateLimitEnabled = options?.rateLimitEnabled !== false;
+  if (rateLimitEnabled) {
+    interface TokenBucket {
+      tokens: number;
+      lastRefill: number;
+    }
+    const tokenBuckets = new Map<string, TokenBucket>();
+    const B_BURST = 350;
+    const R_REFILL = 75; // tokens/second
+
+    app.addHook('onRequest', async (request, reply) => {
+      // Rate limit API endpoints; static assets and health check are exempt
+      if (request.url.startsWith('/api/')) {
+        const ip = request.ip || '127.0.0.1';
+        const now = Date.now();
+        let bucket = tokenBuckets.get(ip);
+        if (!bucket) {
+          bucket = { tokens: B_BURST - 1, lastRefill: now };
+          tokenBuckets.set(ip, bucket);
+        } else {
+          const elapsedSec = (now - bucket.lastRefill) / 1000;
+          bucket.tokens = Math.min(B_BURST, bucket.tokens + elapsedSec * R_REFILL);
+          bucket.lastRefill = now;
+          if (bucket.tokens < 1) {
+            reply.header('Retry-After', '1');
+            return reply.code(429).send({ error: 'Too Many Requests: Rate limit exceeded. Please throttle requests.' });
+          }
+          bucket.tokens -= 1;
+        }
+      }
+    });
+  }
+
+  // CORS Configuration
+  const configuredCors = options?.corsOrigin || process.env.CORS_ORIGIN;
+  const originSetting = (isProduction && configuredCors)
+    ? (typeof configuredCors === 'string' ? configuredCors.split(',').map(s => s.trim()) : configuredCors)
+    : true;
+  app.register(cors, { origin: originSetting });
 
   // Serve static assets from public directory
   const publicPath = path.resolve(__dirname, '../../public');
@@ -43,7 +86,12 @@ export function buildServer(options?: ServerOptions) {
   });
 
   // Health check endpoint
-  app.get('/health', async () => ({ status: 'UP', service: 'AIOCC-Backend', timestamp: Date.now() }));
+  app.get('/health', async () => ({
+    status: 'UP',
+    service: 'AIOCC-Backend',
+    uptimeSec: Math.floor(process.uptime()),
+    timestamp: Date.now()
+  }));
 
   // ==========================================
   // PARTICIPANT ROUTES
@@ -56,7 +104,7 @@ export function buildServer(options?: ServerOptions) {
     const alias = body.alias || 'Operator';
 
     try {
-      const { participant, session } = globalSessionStore.joinParticipant(sessionCode, alias);
+      const { participant, session } = sessionStore.joinParticipant(sessionCode, alias);
       return reply.code(201).send({
         participantId: participant.id,
         alias: participant.alias,
@@ -78,7 +126,7 @@ export function buildServer(options?: ServerOptions) {
     }
 
     try {
-      const current = globalSessionStore.getCurrentScenario(query.sessionCode, query.participantId);
+      const current = sessionStore.getCurrentScenario(query.sessionCode, query.participantId);
       return reply.send(current);
     } catch (err: any) {
       return reply.code(404).send({ error: err.message });
@@ -107,7 +155,7 @@ export function buildServer(options?: ServerOptions) {
     }
 
     try {
-      const result = globalSessionStore.submitDecision({
+      const result = sessionStore.submitDecision({
         sessionId: body.sessionCode,
         sessionCode: body.sessionCode,
         participantId: body.participantId,
@@ -131,7 +179,7 @@ export function buildServer(options?: ServerOptions) {
     if (!body.sessionCode || !body.participantId) {
       return reply.code(400).send({ error: 'Missing sessionCode or participantId' });
     }
-    const success = globalSessionStore.withdrawParticipant(body.sessionCode, body.participantId);
+    const success = sessionStore.withdrawParticipant(body.sessionCode, body.participantId);
     return reply.send({ success, withdrawn: true });
   });
 
@@ -176,7 +224,7 @@ export function buildServer(options?: ServerOptions) {
     if (count < 30 || count > 80) {
       return reply.code(400).send({ error: 'scoredRequestCount must be between 30 and 80' });
     }
-    const session = globalSessionStore.createSession(body.sessionCode, count);
+    const session = sessionStore.createSession(body.sessionCode, count);
     return reply.code(201).send({
       sessionCode: session.sessionCode,
       status: session.status,
@@ -189,7 +237,7 @@ export function buildServer(options?: ServerOptions) {
     const query = request.query as { sessionCode?: string };
     const sessionCode = query.sessionCode || 'DEMO-2026';
     try {
-      const summary = globalSessionStore.getPresenterSummary(sessionCode);
+      const summary = sessionStore.getPresenterSummary(sessionCode);
       return reply.send(summary);
     } catch (err: any) {
       return reply.code(404).send({ error: err.message });
@@ -204,7 +252,7 @@ export function buildServer(options?: ServerOptions) {
     if (!body.sessionCode || typeof body.unlocked !== 'boolean') {
       return reply.code(400).send({ error: 'Missing sessionCode or unlocked boolean flag' });
     }
-    const success = globalSessionStore.setRevealUnlocked(body.sessionCode, body.unlocked);
+    const success = sessionStore.setRevealUnlocked(body.sessionCode, body.unlocked);
     return reply.send({ success, revealUnlocked: body.unlocked });
   });
 
@@ -216,7 +264,7 @@ export function buildServer(options?: ServerOptions) {
     if (!body.sessionCode || !body.status) {
       return reply.code(400).send({ error: 'Missing sessionCode or status' });
     }
-    const success = globalSessionStore.setSessionStatus(body.sessionCode, body.status);
+    const success = sessionStore.setSessionStatus(body.sessionCode, body.status);
     return reply.send({ success, status: body.status });
   });
 

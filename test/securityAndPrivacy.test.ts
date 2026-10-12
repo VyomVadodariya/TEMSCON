@@ -222,4 +222,30 @@ describe('Security, Privacy & Experimental Integrity Tests', () => {
     assert.doesNotMatch(htmlContent, /AIOCC_PRESENTER_SECRET_2026/);
     assert.doesNotMatch(jsContent, /AIOCC_PRESENTER_SECRET_2026/);
   });
+
+  it('Gateway Rate Limiting: throttles requests exceeding token-bucket capacity and exempts health and static routes', async () => {
+    const rateLimitedApp = buildServer({ presenterKey: 'test-rate-limit-token', rateLimitEnabled: true });
+    await rateLimitedApp.ready();
+
+    // Health route is exempt from token bucket rate limiting
+    const healthRes = await rateLimitedApp.inject({ method: 'GET', url: '/health' });
+    assert.equal(healthRes.statusCode, 200);
+
+    // Exhaust 350-token burst capacity on API route
+    let throttled = false;
+    for (let i = 0; i < 355; i++) {
+      const res = await rateLimitedApp.inject({
+        method: 'POST',
+        url: '/api/v1/participant/heartbeat'
+      });
+      if (res.statusCode === 429) {
+        throttled = true;
+        assert.ok(res.headers['retry-after'], 'Retry-After header must be set on 429 response');
+        break;
+      }
+    }
+    assert.ok(throttled, 'Exceeding token bucket burst capacity must trigger 429 Too Many Requests');
+
+    await rateLimitedApp.close();
+  });
 });

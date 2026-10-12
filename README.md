@@ -22,14 +22,17 @@ AIOCC implements the rigorously validated **Option A Research Design**:
 
 ## 2. Architecture & Technical Stack
 
-- **Runtime**: Node.js (v20+ LTS / v22 Alpine Container)
+- **Runtime**: Node.js (v20+ LTS / v22 Alpine Container / Vercel Serverless Function)
 - **Language**: TypeScript 5.7+ (Strict Mode, native ESM)
 - **Backend Framework**: Fastify 5.x (compiled schema validation, sub-millisecond route dispatch, native static asset delivery)
-- **Traffic Protection**: Gateway Token Bucket Rate Limiting ($B = 350\text{ tokens}$, refill $r = 75\text{ tokens/s}$) protecting all `/api/v1/*` routes while exempting static assets and `/health`.
-- **Persistence & State**: Transactional SessionStore with atomic file-backed disk snapshotting (`STORAGE_FILE`), deterministic seed sequences, atomic progress advancement, and cryptographic idempotency deduplication. Survives server and container restarts.
+- **Serverless Adapter**: Native Node HTTP bridge (`api/index.ts`) forwarding requests to Fastify via warm-instance singletons without background listener overhead.
+- **Traffic Protection**: Gateway Token Bucket Rate Limiting ($B = 350\text{ tokens}$, refill $r = 75\text{ tokens/s}$) protecting all `/api/v1/*` routes while exempting static assets and `/health`. *(Note: on serverless platforms like Vercel, rate limiting enforces burst safety per instance)*.
+- **Persistence & State**: 
+  - **Managed PostgreSQL (Production / Vercel)**: `PostgresSessionStore` with connection pooling, transactional row-locking (`FOR UPDATE`), database-enforced idempotency (`UNIQUE` constraints), and automated schema migrations. Survives serverless function cold starts and container recycling.
+  - **Durable File Snapshot (Local / Docker)**: `SessionStore` with atomic file-backed disk snapshotting (`STORAGE_FILE`).
 - **Frontend Client**: High-performance Single Page Application (SPA) with sleek dark obsidian HUD aesthetics, glassmorphic cards, micro-animations, and responsive layouts.
-- **Deployment**: Multi-stage lightweight Docker image (Alpine Linux, non-root user, built-in healthcheck), Docker Compose, and cloud deployment manifests (`render.yaml`).
-- **Testing**: Built-in `node:test` runner, automated deployment smoke verification, and k6 load testing scripts.
+- **Deployment**: Vercel Serverless (`vercel.json`), multi-stage lightweight Docker image (`Dockerfile`), Docker Compose (`docker-compose.yml`), and cloud manifests (`render.yaml`).
+- **Testing**: Built-in `node:test` runner (39 tests across 8 suites), PostgreSQL integration tests, Vercel adapter tests, and k6 load testing scripts.
 
 ---
 
@@ -37,16 +40,19 @@ AIOCC implements the rigorously validated **Option A Research Design**:
 
 ### Prerequisites
 - Node.js (v20.0.0 or later) and npm (v10.0.0 or later), OR
-- Docker / Docker Compose
+- Docker / Docker Compose, OR
+- Vercel Account + Managed PostgreSQL (Neon / Supabase / Vercel Postgres)
 
 ### Environment Variables
 
-| Variable | Description | Default | Required in Production? |
+| Variable | Description | Default | Required in Production / Vercel? |
 | :--- | :--- | :--- | :--- |
 | `PRESENTER_KEY` | Secret token for presenter authorization | *None* | **Yes** (fails closed if missing) |
-| `PORT` | HTTP port to listen on | `3000` | No |
+| `DATABASE_URL` | PostgreSQL connection string | *None* | **Yes on Vercel** (fails closed to prevent ephemeral loss) |
+| `DATABASE_SSL` | Enable/disable SSL for database connection | `true` in prod | No (defaults to SSL with `rejectUnauthorized: false` for cloud DBs) |
+| `PORT` | HTTP port to listen on (standalone Node/Docker) | `3000` | No |
 | `HOST` | Interface IP binding | `0.0.0.0` | No (binds to all interfaces for LAN/WAN access) |
-| `STORAGE_FILE` | Filepath for durable state snapshot persistence | `data/sessions.json` | No |
+| `STORAGE_FILE` | Local file snapshot path (used when no DB configured) | `data/sessions.json` | No |
 | `CORS_ORIGIN` | Allowed CORS origin header | Same-origin (`true`) | No |
 | `NODE_ENV` | Environment mode (`production` / `development`) | `development` | No |
 
@@ -79,7 +85,39 @@ npm start
 
 ---
 
-### Option B: Docker Container Deployment
+### Option B: Vercel Serverless + PostgreSQL Deployment (Recommended for Live Cloud Demos)
+
+The repository is configured for zero-friction Vercel deployment with automated routing, serverless Fastify execution, and managed PostgreSQL persistence.
+
+#### Step 1: Provision a Managed PostgreSQL Database
+You can use any managed PostgreSQL provider (e.g., [Neon.tech](https://neon.tech), [Supabase](https://supabase.com), or [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres)):
+1. Create a free PostgreSQL database on Neon, Supabase, or Vercel Storage.
+2. Copy the Connection String URL (e.g., `postgresql://user:password@ep-xyz.us-east-1.aws.neon.tech/neondb?sslmode=require`).
+
+#### Step 2: Import into Vercel Dashboard
+1. Go to [https://vercel.com/new](https://vercel.com/new).
+2. Select and import the GitHub repository: **`VyomVadodariya/TEMSCON`** (branch: `main`).
+3. Under **Build and Output Settings**:
+   - Framework Preset: **Other**
+   - Build Command: `npm run build` (or leave default `tsc`)
+   - Output Directory: leave default
+4. Under **Environment Variables**, add the following required secrets:
+   - **`PRESENTER_KEY`**: Your secret presenter passphrase (e.g., `LiveDemoSecretKey2026!`).
+   - **`DATABASE_URL`**: Your managed PostgreSQL connection URL from Step 1.
+5. Click **Deploy**.
+
+#### Step 3: Automated Database Migration & URL Verification
+- On the first incoming request, `api/index.ts` automatically runs schema migrations (`CREATE TABLE IF NOT EXISTS aiocc_sessions, aiocc_participants, aiocc_decisions`) and pre-seeds session `DEMO-2026`.
+- Verify the public HTTPS URL:
+  - **Health Check**: `https://<your-project>.vercel.app/health` -> returns `{"status":"UP","service":"AIOCC-Backend","persistence":"PostgreSQL"}`.
+  - **Operator Interface**: `https://<your-project>.vercel.app/`
+  - **Presenter Console**: `https://<your-project>.vercel.app/#presenter`
+
+> **Serverless Persistence Guarantee**: The application refuses to silently fall back to ephemeral container/lambda disk storage in production. If `DATABASE_URL` is omitted in Vercel or production mode, startup fails closed with `FATAL PERSISTENCE ERROR`.
+
+---
+
+### Option C: Docker Container Deployment
 
 The application includes an optimized multi-stage Docker build producing a secure ~70MB Alpine image running as a non-root user (`node`).
 
@@ -102,7 +140,7 @@ curl http://localhost:3000/health
 
 ---
 
-### Option C: Docker Compose
+### Option D: Docker Compose
 
 ```bash
 # Set your presenter key in the environment or .env file
@@ -117,20 +155,11 @@ docker compose logs -f
 
 ---
 
-### Option D: Cloud Hosting & Multi-Device Deployment (Render, Fly.io, Railway, AWS ECS)
+### Option E: Render / AWS / Cloud Container
 
-1. **Render.com Deployment**:
-   The repository includes a verified [`render.yaml`](render.yaml) blueprint:
-   - Configures a Docker web service with auto-scaling and health check (`/health`).
-   - Attaches a persistent disk at `/app/data` to ensure session state and participant results survive platform deploys and container recycling.
-   - Requires setting `PRESENTER_KEY` as a secret environment variable in the Render Dashboard.
-2. **Multi-Device Live Demos (Wi-Fi / LAN)**:
-   Because the server binds to `0.0.0.0:3000`, any device on the same local network (phones, tablets, laptops) can participate without extra infrastructure:
-   - Find your host IP (e.g. `192.168.1.150`).
-   - Presenter opens: `http://192.168.1.150:3000/#presenter`
-   - Participants open: `http://192.168.1.150:3000/`
-
-> **Cloud Account Authorization Notice**: Pushing to a public cloud provider (e.g., Render, Fly.io, AWS) requires your personal platform account login or API token. Automated infrastructure manifests (`render.yaml`, `Dockerfile`, `docker-compose.yml`) are fully tested and ready to deploy with zero code changes once connected to your hosting account.
+The repository includes a verified [`render.yaml`](render.yaml) blueprint:
+- Configures a Docker web service with persistent disk at `/app/data` and healthcheck (`/health`).
+- Set `PRESENTER_KEY` in the service settings.
 
 ---
 
@@ -139,7 +168,7 @@ docker compose logs -f
 The test harness exercises all layers of the platform with zero mock drift:
 
 ```bash
-# Run all unit and integration test suites (28 tests across 6 suites)
+# Run all unit, integration, and serverless tests (39 tests across 8 suites)
 npm test
 
 # Run scoring engine regression tests (all 6 canonical worked examples)
@@ -151,6 +180,12 @@ npm run test:sequence
 # Run end-to-end API integration tests
 npm run test:e2e
 
+# Run Vercel Serverless Function adapter tests
+npm run test:vercel
+
+# Run PostgreSQL persistence & transaction tests (requires PostgreSQL or Docker)
+npm run test:postgres
+
 # Run in-process load benchmark (500 requests at >4,000 req/s)
 npm run test:load
 
@@ -158,7 +193,6 @@ npm run test:load
 npm run test:smoke
 
 # Distributed load test preparation (k6)
-# (Requires k6 installed: https://k6.io)
 k6 run test/k6-load-test.js
 ```
 
@@ -168,8 +202,10 @@ k6 run test/k6-load-test.js
 - `test/e2e.test.ts` (5 tests passing): Health checks, balanced participant enrollment, client payload answer scrubbing, idempotent retry deduplication, presenter session creation and reveal toggling.
 - `test/securityAndPrivacy.test.ts` (7 tests passing): Zero ground truth/probe flags leaked to client, mutating presenter endpoints protected by `x-presenter-key`, fail-closed credential behavior in missing key/production states, hypothesis privacy masking before reveal (even when session status is CONCLUDED), token bucket rate limiting ($B=350, r=75$), sequence mismatch validation, and UI template hardening.
 - `test/reliabilityAndPersistence.test.ts` (4 tests passing): Idempotent duplicate submission handling, uncompleted session timeouts, state serialization, and durable disk snapshot restoration across server restarts.
+- `test/postgresPersistence.test.ts` (7 tests passing): Schema migrations, transactional participant enrollment, atomic decision recording with row locks, database-enforced idempotency (`UNIQUE` constraints), state rehydration across independent store instances, hypothesis privacy masking, and production fail-closed behavior when `DATABASE_URL` is absent.
+- `test/vercelAdapter.test.ts` (4 tests passing): Serverless entry point `api/index.ts` routing, HTTP stream handling, pre-parsed serverless body support, and presenter authentication enforcement.
 - `test/fullSessionSimulation.test.ts` (1 test passing): 53-request full lifecycle simulation of Complacent vs Vigilant operators, verifying condition-level contrast and educational reveal.
-- `test/deploymentSmokeTest.ts` (Passing): Verifies `/health`, static files, fail-closed 401s, participant join, practice requests, idempotency, hypothesis masking, and educational reveal over HTTP.
+- `test/deploymentSmokeTest.ts` (Passing): Standalone HTTP test verifying `/health`, static file delivery, presenter 401s, participant enrollment, practice progress, and reveal unmasking over live network HTTP.
 - `test/loadTest.ts`: Measured empirical load test (25 VUs $\times$ 20 decisions = 500 requests at 4,098 req/sec, $p95 = 13\text{ ms}$, 0% error rate). Distributed 200-participant load target across real networks remains an unverified provisional target pending Phase 5 k6 testing.
 
 ---
@@ -183,9 +219,9 @@ sequenceDiagram
     autonumber
     actor Presenter
     actor Audience as Participants (Laptops/Phones)
-    participant Server as AIOCC Server
+    participant Server as AIOCC Server (Vercel / Docker)
     
-    Presenter->>Server: Start Server with PRESENTER_KEY
+    Presenter->>Server: Start Server with PRESENTER_KEY & DATABASE_URL
     Presenter->>Server: Authenticate in #presenter (Enters Key)
     Server-->>Presenter: Key Configured (Hypothesis Masked)
     Audience->>Server: Connect to / (Join Session DEMO-2026)
@@ -201,20 +237,18 @@ sequenceDiagram
 ```
 
 ### Pre-Event Checklist (5 Minutes Before)
-1. **Launch Server**:
-   Ensure container or Node process is running with your secret `PRESENTER_KEY`.
-2. **Verify Health**:
-   Browse to `http://<HOST>:3000/health`. Confirm response contains `{"status":"UP"}`.
-3. **Open Presenter Console**:
-   Navigate to `http://<HOST>:3000/#presenter`.
+1. **Verify Health**:
+   Browse to `https://<HOST>/health`. Confirm response contains `{"status":"UP","persistence":"PostgreSQL"}` (or `"File/Memory"`).
+2. **Open Presenter Console**:
+   Navigate to `https://<HOST>/#presenter`.
    Enter your `PRESENTER_KEY` and click **Authorize**. Confirm badge updates to `Key: Configured`.
-4. **Confirm Hypothesis Masking**:
+3. **Confirm Hypothesis Masking**:
    Confirm the gold alert banner reads:
    `"HYPOTHESIS PRIVACY ACTIVE: Experimental condition labels, contrast cards, and probe catch rates are strictly hidden during live operations."`
 
 ### Live Event Flow (15 Minutes)
 1. **Invite Audience (Minutes 0–2)**:
-   - Instruct participants to visit the root URL (`http://<HOST>:3000/`) on their mobile device or laptop.
+   - Instruct participants to visit the root URL (`https://<HOST>/`) on their mobile device or laptop.
    - Provide Session Code: `DEMO-2026` (pre-seeded active session) and have them enter an alias.
    - The platform automatically assigns participants equally to Condition A (`EXTENDED_REVIEW`) or Condition B (`REDUCED_REVIEW`) in double-blind fashion.
 2. **Practice Familiarization (Minutes 2–4)**:
@@ -239,19 +273,17 @@ sequenceDiagram
 ## 6. Persistence, Reliability & Recovery
 
 ### Persistence Architecture
-- State mutations (`createSession`, `joinParticipant`, `submitDecision`, `withdrawParticipant`, `setRevealUnlocked`, `setSessionStatus`) trigger an immediate, synchronous snapshot to `STORAGE_FILE` (`data/sessions.json` or docker volume `/app/data/sessions.json`).
-- On server startup, existing session state and participant records are automatically loaded from disk.
-- Tested across Docker container restarts: 100% of enrolled participants, queue states, and scores survive process restarts.
+- **Vercel / Cloud Production**: Uses managed PostgreSQL (`DATABASE_URL`). Schema tables (`aiocc_sessions`, `aiocc_participants`, `aiocc_decisions`) are automatically created. Decisions are guarded by composite unique constraints (`uq_aiocc_part_assign` and `uq_aiocc_part_idempotency`) to ensure duplicate submissions cannot inflate scores.
+- **Local & Docker**: Uses transactional `SessionStore` with atomic file snapshotting to `STORAGE_FILE` (`data/sessions.json` or docker volume `/app/data/sessions.json`).
+- Tested across database rehydration and container restarts: 100% of enrolled participants, queue states, and scores survive cold starts and server restarts.
 
 ### Recovery Procedures
 - **Lost Presenter Key**:
-  If the presenter forgets their `PRESENTER_KEY`, they can look up the environment variable configured in their deployment environment, or restart the container with a new key. Participant data stored on disk remains intact.
-- **Unexpected Container Crash**:
-  Simply restart the container (`docker restart <container_id>`). The service will rehydrate all sessions from the persistent volume.
+  Presenter authentication is validated from the `PRESENTER_KEY` environment variable. If forgotten, check your Vercel or deployment dashboard environment settings.
 - **Participant Disconnect or Refresh**:
-  Participants who reload their browser can rejoin with the same session code and alias. Idempotency keys prevent duplicate scoring of previously submitted items.
-- **Current Persistence Boundaries**:
-  File-backed snapshotting is designed for single-node deployments and live conference demonstrations. High-availability multi-region active-active clusters would require a distributed database adapter (e.g., PostgreSQL).
+  Participants who reload their browser can rejoin with the same session code and alias. Database idempotency constraints prevent duplicate scoring of previously submitted items.
+- **Rate Limit Behavior**:
+  Gateway rate limiting operates with a token bucket burst capacity of 350 tokens and 75 tokens/s refill rate. In Vercel serverless environments, this protects each serverless instance from traffic surges.
 
 ---
 
@@ -262,9 +294,12 @@ sequenceDiagram
 ├── .gitignore                      # Safeguards against secrets, credentials, node_modules, data
 ├── Dockerfile                      # Multi-stage production container build (Alpine Linux)
 ├── docker-compose.yml              # Local container orchestration with volume persistence
+├── vercel.json                     # Vercel serverless routing and rewrite configuration
 ├── render.yaml                     # Cloud deployment blueprint (Render.com)
 ├── package.json                    # Dependencies, scripts, and ESM configuration
 ├── tsconfig.json                   # Strict TypeScript compiler configuration
+├── api/
+│   └── index.ts                    # Vercel Serverless Function entry point (Node HTTP bridge)
 ├── docs/                           # Phase 0.1 - 0.5 Authoritative Specifications
 │   ├── PHASE_0_5_CONSISTENCY_LOCK.md # Canonical specification source of truth
 │   ├── ARCHITECTURE.md             # System architecture & workload model
@@ -277,13 +312,14 @@ sequenceDiagram
 │   ├── src/
 │   │   ├── index.ts                # Application entry point with fail-closed key validation
 │   │   ├── server.ts               # Fastify routes, rate limiting, static assets, presenter auth
-│   │   ├── types.ts                # Domain models, scoring contracts, and session types
+│   │   ├── types.ts                # Domain models, scoring contracts, ISessionStore interface
 │   │   ├── scenarios/
 │   │   │   └── scenarioBank.ts     # 106 reviewed synthetic enterprise scenario templates
 │   │   └── services/
-│   │       ├── sequenceGenerator.ts # Option A sequence allocation engine
-│   │       ├── scoringEngine.ts     # Canonical Scoring Contract v1.0.0
-│   │       └── sessionStore.ts      # Server-authoritative state store with durable file snapshotting
+│   │       ├── sequenceGenerator.ts     # Option A sequence allocation engine
+│   │       ├── scoringEngine.ts         # Canonical Scoring Contract v1.0.0
+│   │       ├── sessionStore.ts          # Server-authoritative in-memory / file snapshot store
+│   │       └── postgresSessionStore.ts  # Production PostgreSQL transactional persistence engine
 ├── public/
 │   ├── index.html                  # Responsive Single Page Application with masked contrast view
 │   ├── css/
@@ -296,6 +332,8 @@ sequenceDiagram
     ├── e2e.test.ts                 # 5 end-to-end API integration tests
     ├── securityAndPrivacy.test.ts  # 7 security, rate limiting, and hypothesis privacy tests
     ├── reliabilityAndPersistence.test.ts # 4 reliability, deduplication, and file persistence tests
+    ├── postgresPersistence.test.ts # 7 PostgreSQL schema migrations, transactions & idempotency tests
+    ├── vercelAdapter.test.ts       # 4 Vercel serverless function entry point tests
     ├── fullSessionSimulation.test.ts # 1 complete multi-participant end-to-end simulation
     ├── deploymentSmokeTest.ts      # Standalone HTTP smoke test for live/containerized environments
     ├── loadTest.ts                 # Measured empirical in-process load test

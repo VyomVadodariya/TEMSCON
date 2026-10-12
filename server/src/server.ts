@@ -4,7 +4,8 @@ import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { globalSessionStore, SessionStore } from './services/sessionStore.js';
-import { DecisionAction } from './types.js';
+import { PostgresSessionStore } from './services/postgresSessionStore.js';
+import { DecisionAction, ISessionStore } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,14 +14,16 @@ export interface ServerOptions {
   presenterKey?: string;
   isProduction?: boolean;
   corsOrigin?: string | string[];
-  sessionStore?: SessionStore;
+  sessionStore?: ISessionStore;
   rateLimitEnabled?: boolean;
+  databaseUrl?: string;
 }
 
 export function buildServer(options?: ServerOptions) {
+  const isVercel = process.env.VERCEL === '1';
   const isProduction = options?.isProduction !== undefined
     ? options.isProduction
-    : process.env.NODE_ENV === 'production';
+    : (process.env.NODE_ENV === 'production' || isVercel);
 
   const presenterKey = options?.presenterKey !== undefined
     ? options.presenterKey
@@ -30,14 +33,51 @@ export function buildServer(options?: ServerOptions) {
     throw new Error('FATAL SECURITY ERROR: PRESENTER_KEY environment variable is required in production. Application will not start without a configured presenter credential.');
   }
 
-  const sessionStore = options?.sessionStore || globalSessionStore;
+  const databaseUrl = options?.databaseUrl || process.env.DATABASE_URL;
+
+  let sessionStore: ISessionStore;
+  if (options?.sessionStore) {
+    sessionStore = options.sessionStore;
+  } else if (databaseUrl) {
+    sessionStore = new PostgresSessionStore({ connectionString: databaseUrl });
+  } else if (isProduction || isVercel) {
+    throw new Error('FATAL PERSISTENCE ERROR: DATABASE_URL environment variable is required in production on Vercel. Serverless environments cannot use ephemeral local file storage. Please configure a managed PostgreSQL database connection URL.');
+  } else {
+    sessionStore = globalSessionStore;
+  }
 
   const app = fastify({
     logger: false, // Clean console output for tests
     trustProxy: true
   });
 
+  // Support both standard Node streaming and serverless pre-parsed JSON bodies
+  app.addContentTypeParser('application/json', {}, (request, payload, done) => {
+    const rawReq = request.raw as any;
+    if (rawReq.body && typeof rawReq.body === 'object') {
+      return done(null, rawReq.body);
+    }
+    if (typeof rawReq.body === 'string') {
+      try {
+        return done(null, JSON.parse(rawReq.body));
+      } catch (err: any) {
+        return done(err, undefined);
+      }
+    }
+    let data = '';
+    payload.on('data', chunk => { data += chunk; });
+    payload.on('end', () => {
+      try {
+        const parsed = data ? JSON.parse(data) : {};
+        done(null, parsed);
+      } catch (err: any) {
+        done(err, undefined);
+      }
+    });
+  });
+
   // Gateway Token Bucket Rate Limiting (Phase 0.5 Spec: Burst B=350, Refill r=75 tokens/s)
+  // In serverless environments (Vercel), this operates per function instance.
   const rateLimitEnabled = options?.rateLimitEnabled !== false;
   if (rateLimitEnabled) {
     interface TokenBucket {
@@ -71,6 +111,13 @@ export function buildServer(options?: ServerOptions) {
     });
   }
 
+  // Automatic schema migrations & store initialization hook
+  app.addHook('onReady', async () => {
+    if (sessionStore.init) {
+      await sessionStore.init();
+    }
+  });
+
   // CORS Configuration
   const configuredCors = options?.corsOrigin || process.env.CORS_ORIGIN;
   const originSetting = (isProduction && configuredCors)
@@ -78,7 +125,7 @@ export function buildServer(options?: ServerOptions) {
     : true;
   app.register(cors, { origin: originSetting });
 
-  // Serve static assets from public directory
+  // Serve static assets from public directory (for local node and standalone docker)
   const publicPath = path.resolve(__dirname, '../../public');
   app.register(fastifyStatic, {
     root: publicPath,
@@ -89,6 +136,7 @@ export function buildServer(options?: ServerOptions) {
   app.get('/health', async () => ({
     status: 'UP',
     service: 'AIOCC-Backend',
+    persistence: databaseUrl ? 'PostgreSQL' : 'File/Memory',
     uptimeSec: Math.floor(process.uptime()),
     timestamp: Date.now()
   }));
@@ -104,7 +152,7 @@ export function buildServer(options?: ServerOptions) {
     const alias = body.alias || 'Operator';
 
     try {
-      const { participant, session } = sessionStore.joinParticipant(sessionCode, alias);
+      const { participant, session } = await sessionStore.joinParticipant(sessionCode, alias);
       return reply.code(201).send({
         participantId: participant.id,
         alias: participant.alias,
@@ -126,7 +174,7 @@ export function buildServer(options?: ServerOptions) {
     }
 
     try {
-      const current = sessionStore.getCurrentScenario(query.sessionCode, query.participantId);
+      const current = await sessionStore.getCurrentScenario(query.sessionCode, query.participantId);
       return reply.send(current);
     } catch (err: any) {
       return reply.code(404).send({ error: err.message });
@@ -155,7 +203,7 @@ export function buildServer(options?: ServerOptions) {
     }
 
     try {
-      const result = sessionStore.submitDecision({
+      const result = await sessionStore.submitDecision({
         sessionId: body.sessionCode,
         sessionCode: body.sessionCode,
         participantId: body.participantId,
@@ -179,7 +227,7 @@ export function buildServer(options?: ServerOptions) {
     if (!body.sessionCode || !body.participantId) {
       return reply.code(400).send({ error: 'Missing sessionCode or participantId' });
     }
-    const success = sessionStore.withdrawParticipant(body.sessionCode, body.participantId);
+    const success = await sessionStore.withdrawParticipant(body.sessionCode, body.participantId);
     return reply.send({ success, withdrawn: true });
   });
 
@@ -224,7 +272,7 @@ export function buildServer(options?: ServerOptions) {
     if (count < 30 || count > 80) {
       return reply.code(400).send({ error: 'scoredRequestCount must be between 30 and 80' });
     }
-    const session = sessionStore.createSession(body.sessionCode, count);
+    const session = await sessionStore.createSession(body.sessionCode, count);
     return reply.code(201).send({
       sessionCode: session.sessionCode,
       status: session.status,
@@ -232,17 +280,20 @@ export function buildServer(options?: ServerOptions) {
     });
   });
 
-  // Get Presenter Aggregate Summary (Public/Presenter Read)
-  app.get('/api/v1/presenter/session/summary', async (request, reply) => {
+  // Presenter Summary Handler (Dual Route: /session/summary and /summary)
+  const handlePresenterSummary = async (request: any, reply: any) => {
     const query = request.query as { sessionCode?: string };
     const sessionCode = query.sessionCode || 'DEMO-2026';
     try {
-      const summary = sessionStore.getPresenterSummary(sessionCode);
+      const summary = await sessionStore.getPresenterSummary(sessionCode);
       return reply.send(summary);
     } catch (err: any) {
       return reply.code(404).send({ error: err.message });
     }
-  });
+  };
+
+  app.get('/api/v1/presenter/session/summary', handlePresenterSummary);
+  app.get('/api/v1/presenter/summary', handlePresenterSummary);
 
   // Toggle Educational Reveal (Presenter Protected)
   app.post('/api/v1/presenter/session/reveal', async (request, reply) => {
@@ -252,7 +303,7 @@ export function buildServer(options?: ServerOptions) {
     if (!body.sessionCode || typeof body.unlocked !== 'boolean') {
       return reply.code(400).send({ error: 'Missing sessionCode or unlocked boolean flag' });
     }
-    const success = sessionStore.setRevealUnlocked(body.sessionCode, body.unlocked);
+    const success = await sessionStore.setRevealUnlocked(body.sessionCode, body.unlocked);
     return reply.send({ success, revealUnlocked: body.unlocked });
   });
 
@@ -264,7 +315,7 @@ export function buildServer(options?: ServerOptions) {
     if (!body.sessionCode || !body.status) {
       return reply.code(400).send({ error: 'Missing sessionCode or status' });
     }
-    const success = sessionStore.setSessionStatus(body.sessionCode, body.status);
+    const success = await sessionStore.setSessionStatus(body.sessionCode, body.status);
     return reply.send({ success, status: body.status });
   });
 

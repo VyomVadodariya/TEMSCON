@@ -102,3 +102,38 @@ export interface ExperimentSession {
   revealUnlocked: boolean; // Educational reveal toggle
   participants: Map<string, ParticipantSession>;
 }
+
+export interface ISessionStore {
+  init?(): Promise<void>;
+  createSession(sessionCode: string, scoredRequestCount?: number): Promise<ExperimentSession> | ExperimentSession;
+  getSession(sessionCode: string): Promise<ExperimentSession | undefined> | ExperimentSession | undefined;
+  getAllSessions(): Promise<ExperimentSession[]> | ExperimentSession[];
+  joinParticipant(sessionCode: string, alias: string): Promise<{ participant: ParticipantSession; session: ExperimentSession }> | { participant: ParticipantSession; session: ExperimentSession };
+  getParticipant(sessionCode: string, participantId: string): Promise<ParticipantSession | undefined> | ParticipantSession | undefined;
+  getCurrentScenario(sessionCode: string, participantId: string): Promise<{
+    queueItem: QueueItem | null;
+    isCompleted: boolean;
+    progress: { current: number; total: number; practiceRemaining: number };
+    scoreSummary?: SessionScoringSummary;
+  }> | {
+    queueItem: QueueItem | null;
+    isCompleted: boolean;
+    progress: { current: number; total: number; practiceRemaining: number };
+    scoreSummary?: SessionScoringSummary;
+  };
+  submitDecision(submission: DecisionSubmission): Promise<{
+    success: boolean;
+    isDuplicate: boolean;
+    nextScenario: any;
+  }> | {
+    success: boolean;
+    isDuplicate: boolean;
+    nextScenario: any;
+  };
+  withdrawParticipant(sessionCode: string, participantId: string): Promise<boolean> | boolean;
+  setRevealUnlocked(sessionCode: string, unlocked: boolean): Promise<boolean> | boolean;
+  setSessionStatus(sessionCode: string, status: ExperimentSession['status']): Promise<boolean> | boolean;
+  getPresenterSummary(sessionCode: string): Promise<any> | any;
+  close?(): Promise<void>;
+}
+

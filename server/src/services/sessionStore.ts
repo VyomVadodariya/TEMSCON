@@ -5,7 +5,8 @@ import {
   RecordedDecision,
   DecisionSubmission,
   SessionScoringSummary,
-  QueueItem
+  QueueItem,
+  ISessionStore
 } from '../types.js';
 import { generateParticipantQueue } from './sequenceGenerator.js';
 import { computeSessionScore, SCORING_MATRIX } from './scoringEngine.js';
@@ -16,7 +17,7 @@ export interface SessionStoreOptions {
   storagePath?: string | null;
 }
 
-export class SessionStore {
+export class SessionStore implements ISessionStore {
   private sessions: Map<string, ExperimentSession> = new Map();
   private conditionCounter = 0; // For alternating balanced assignment
   private storagePath: string | null = null;

@@ -16,7 +16,8 @@
     "test:smoke": "node --import tsx test/deploymentSmokeTest.ts",
     "test:postgres": "node --import tsx --test test/postgresPersistence.test.ts",
     "test:vercel": "node --import tsx --test test/vercelAdapter.test.ts",
-    "test:pilot": "node --import tsx test/pilotProductionValidation.ts"
+    "test:pilot": "node --import tsx test/pilotProductionValidation.ts",
+    "migrate": "node --import tsx server/src/db/migrations.ts"
   },
   "keywords": [
     "ai-oversight",

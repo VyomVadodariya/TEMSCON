@@ -235,7 +235,26 @@ export async function runPilotValidation() {
   assert.equal(resultsData.cards.totalApprovals.status, 'AVAILABLE');
   console.log(`[PASS] Simulator Results Dashboard verified: 5 cards derived from server ground truth with practice excluded`);
 
-  console.log(`\nALL PHASE 4 & 4.1 PILOT VALIDATION CHECKS PASSED ON PRODUCTION!`);
+  // 13. Production Fractional Score Verification (-0.5 reward on COMPLIANT_ROUTINE ESCALATE)
+  const fracRes = await fetch(`${PROD_URL}/api/v1/participant/decisions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionCode,
+      participantId: p2.participantId,
+      queueIndex: 1,
+      assignmentId: 'assign-1',
+      decision: 'ESCALATE',
+      dwellTimeMs: 2500,
+      idempotencyKey: `idem-${sessionCode}-p2-frac`
+    })
+  });
+  assert.equal(fracRes.status, 201, 'Fractional decision (-0.5) must succeed on production PostgreSQL');
+  const fracData = await fracRes.json() as any;
+  assert.equal(fracData.success, true);
+  console.log(`[PASS] Production Fractional Score (-0.5) submitted and persisted without integer rejection`);
+
+  console.log(`\nALL PHASE 4, 4.1 & HOTFIX PILOT VALIDATION CHECKS PASSED ON PRODUCTION!`);
 }
 
 runPilotValidation().catch(err => {

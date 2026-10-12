@@ -119,6 +119,7 @@ Once participants reach the completion screen:
 | **HTTP 401 Unauthorized in Presenter View** | Missing or incorrect presenter key | Re-enter the exact `PRESENTER_KEY` configured in Vercel environment settings and click Authorize. |
 | **Vercel Cloud Interruption** | Network / upstream issue | Launch local backup container: `docker run -p 3000:3000 -e PRESENTER_KEY=demo123 aiocc-test:local`. Connect audience to `http://<local-ip>:3000`. |
 | **Participant Submission Error** | Out-of-order request or race condition | The frontend will alert the user. Refresh the page to synchronize the latest server state. |
+| **Participant Decision Error (Fractional Score)** | Prior PostgreSQL integer column mismatch | Resolved in migration `001_raw_points_numeric` (`NUMERIC(10, 2)`). Transactional rollback guarantees sequence position was preserved; participant simply retries submission. |
 
 ---
 

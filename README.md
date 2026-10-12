@@ -107,7 +107,9 @@ You can use any managed PostgreSQL provider (e.g., [Neon.tech](https://neon.tech
 5. Click **Deploy**.
 
 #### Step 3: Automated Database Migration & URL Verification
-- On the first incoming request, `api/index.ts` automatically runs schema migrations (`CREATE TABLE IF NOT EXISTS aiocc_sessions, aiocc_participants, aiocc_decisions`) and pre-seeds session `DEMO-2026`.
+- On startup, `server.ts` / `api/index.ts` acquires a transactional PostgreSQL advisory lock (`SELECT pg_advisory_xact_lock(74291845)`) and automatically executes idempotent versioned schema migrations (`aiocc_migrations`).
+- Migrations include `001_raw_points_numeric` which converts `aiocc_decisions.raw_points` to `NUMERIC(10, 2)` to preserve fractional rewards (such as `-0.5` on compliant routine escalations).
+- You can also execute migrations manually via: `npm run migrate`.
 - **Live Verified Deployment**:
   - **Health Check**: [`https://temscon-three.vercel.app/health`](https://temscon-three.vercel.app/health) -> returns `{"status":"UP","service":"AIOCC-Backend","persistence":"PostgreSQL"}`.
   - **Operator Interface**: [`https://temscon-three.vercel.app/`](https://temscon-three.vercel.app/)

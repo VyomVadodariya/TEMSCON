@@ -206,6 +206,102 @@ describe('PostgreSQL Persistence & Serverless Durability Suite', () => {
     assert.equal(results.metadata.serverAuthoritative, true);
   });
 
+  it('Fractional Score Persistence (-0.5): persists compliant routine ESCALATE and preserves fractional values on read', async (t) => {
+    if (!isDbAvailable) {
+      t.skip('Database unavailable');
+      return;
+    }
+    const fracSession = `FRAC-TEST-${Date.now()}`;
+    await store.createSession(fracSession, 50);
+    const { participant } = await store.joinParticipant(fracSession, 'Operator-Fractional');
+
+    // Scenario 1 is COMPLIANT_ROUTINE.
+    // Optimal is APPROVE (2.0). Escalating yields -0.5.
+    const res = await store.submitDecision({
+      sessionCode: fracSession,
+      participantId: participant.id,
+      queueIndex: 1,
+      assignmentId: 'assign-1',
+      decision: 'ESCALATE',
+      dwellTimeMs: 2800,
+      clientTimestamp: Date.now(),
+      idempotencyKey: `idem-frac-${Date.now()}-1`
+    });
+
+    assert.equal(res.success, true);
+    assert.equal(res.isDuplicate, false);
+
+    // Read saved record back from PostgreSQL
+    const rehydrated = await store.getParticipant(fracSession, participant.id);
+    assert.ok(rehydrated);
+    assert.equal(rehydrated.currentQueueIndex, 2);
+
+    const savedDec = rehydrated.decisions.get('assign-1');
+    assert.ok(savedDec);
+    assert.equal(savedDec.decision, 'ESCALATE');
+    assert.equal(savedDec.rawPoints, -0.5, 'rawPoints must be exactly -0.5');
+    assert.equal(typeof savedDec.rawPoints, 'number', 'rawPoints must be a JavaScript number');
+  });
+
+  it('Database Failure Rollback: failed submission does not advance queue or commit partial scoring', async (t) => {
+    if (!isDbAvailable) {
+      t.skip('Database unavailable');
+      return;
+    }
+    const rollbackSession = `ROLLBACK-TEST-${Date.now()}`;
+    await store.createSession(rollbackSession, 50);
+    const { participant } = await store.joinParticipant(rollbackSession, 'Operator-Rollback');
+
+    // Attempt invalid submission (sequence mismatch: submit queueIndex 99 when active is 1)
+    await assert.rejects(
+      async () => {
+        await store.submitDecision({
+          sessionCode: rollbackSession,
+          participantId: participant.id,
+          queueIndex: 99,
+          assignmentId: 'assign-99',
+          decision: 'APPROVE',
+          dwellTimeMs: 2000,
+          clientTimestamp: Date.now(),
+          idempotencyKey: `idem-fail-1`
+        });
+      },
+      /Sequence mismatch/
+    );
+
+    // Verify participant state remains at queueIndex 1 with 0 recorded decisions
+    const checkPart = await store.getParticipant(rollbackSession, participant.id);
+    assert.ok(checkPart);
+    assert.equal(checkPart.currentQueueIndex, 1, 'Queue index must not advance after failed submission');
+    assert.equal(checkPart.decisions.size, 0, 'No decisions must be recorded after rollback');
+  });
+
+  it('API Error Sanitization: unexpected database errors do not leak internal SQL syntax to client', async (t) => {
+    const server = buildServer({ presenterKey: 'test-key-sanitize', sessionStore: store });
+    try {
+      // Send decision with missing required participant that fails gracefully
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/participant/decisions',
+        payload: {
+          sessionCode: 'NON-EXISTENT-SESSION',
+          participantId: 'invalid-part',
+          queueIndex: 1,
+          assignmentId: 'assign-1',
+          decision: 'APPROVE'
+        }
+      });
+
+      assert.equal(res.statusCode, 400);
+      const data = JSON.parse(res.body);
+      assert.ok(data.error);
+      assert.ok(!data.error.includes('syntax error'), 'Must not expose raw SQL syntax errors');
+      assert.ok(!data.error.includes('SELECT'), 'Must not expose internal SQL queries');
+    } finally {
+      await server.close();
+    }
+  });
+
   it('Production Fail-Closed Persistence: server throws when DATABASE_URL is missing in production/Vercel', () => {
     const savedVercel = process.env.VERCEL;
     const savedDbUrl = process.env.DATABASE_URL;

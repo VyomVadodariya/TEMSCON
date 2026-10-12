@@ -265,7 +265,12 @@ export function buildServer(options?: ServerOptions) {
 
       return reply.code(result.isDuplicate ? 200 : 201).send(result);
     } catch (err: any) {
-      return reply.code(400).send({ error: err.message });
+      const isClientValidationError = /mismatch|completed|invalid|withdrawn|not found|required/i.test(err.message);
+      if (isClientValidationError) {
+        return reply.code(400).send({ error: err.message });
+      }
+      request.log?.error?.(err);
+      return reply.code(500).send({ error: 'An unexpected persistence error occurred. Please retry your decision.' });
     }
   });
 

@@ -11,6 +11,10 @@ import {
 import { generateParticipantQueue } from './sequenceGenerator.js';
 import { computeSessionScore, SCORING_MATRIX } from './scoringEngine.js';
 import { computeSimulatorResults } from './simulatorResults.js';
+import { runMigrations } from '../db/migrations.js';
+
+// Register global parser for NUMERIC (OID 1700) to return JavaScript number
+pg.types.setTypeParser(1700, (val: string) => parseFloat(val));
 
 export interface PostgresStoreOptions {
   connectionString?: string;
@@ -104,7 +108,7 @@ export class PostgresSessionStore {
           is_optimal BOOLEAN NOT NULL,
           dwell_time_ms INT NOT NULL,
           submitted_at BIGINT NOT NULL,
-          raw_points INT NOT NULL,
+          raw_points NUMERIC(10, 2) NOT NULL,
           is_catastrophic_approval BOOLEAN NOT NULL,
           idempotency_key VARCHAR(128) NOT NULL,
           CONSTRAINT uq_aiocc_part_assign UNIQUE (participant_id, assignment_id),
@@ -125,13 +129,16 @@ export class PostgresSessionStore {
       `, [Date.now()]);
 
       await client.query('COMMIT');
-      this.isInitialized = true;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Run versioned migrations (with advisory locking to prevent serverless concurrency races)
+    await runMigrations(this.pool);
+    this.isInitialized = true;
   }
 
   public async createSession(sessionCode: string, scoredRequestCount = 50): Promise<ExperimentSession> {
@@ -191,7 +198,7 @@ export class PostgresSessionStore {
         isOptimal: d.is_optimal,
         dwellTimeMs: d.dwell_time_ms,
         submittedAt: Number(d.submitted_at),
-        rawPoints: d.raw_points,
+        rawPoints: Number(d.raw_points),
         isCatastrophicApproval: d.is_catastrophic_approval
       });
     }
@@ -364,7 +371,7 @@ export class PostgresSessionStore {
         isOptimal: d.is_optimal,
         dwellTimeMs: d.dwell_time_ms,
         submittedAt: Number(d.submitted_at),
-        rawPoints: d.raw_points,
+        rawPoints: Number(d.raw_points),
         isCatastrophicApproval: d.is_catastrophic_approval
       });
     }

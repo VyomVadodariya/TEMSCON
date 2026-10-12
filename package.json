@@ -2,6 +2,7 @@
   "name": "temcon-aiocc",
   "version": "1.0.0",
   "description": "AI Operations Control Center (AIOCC) - Human Oversight and Automation Complacency Platform",
+  "type": "module",
   "main": "server/dist/index.js",
   "scripts": {
     "build": "tsc",

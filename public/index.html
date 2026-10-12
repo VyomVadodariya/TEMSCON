@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Operations Control Center (AIOCC) — Human Oversight Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Top Global Header -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-icon">AI</div>
+      <div class="brand-text">
+        <h1>AI Operations Control Center</h1>
+        <p>Human-in-the-Loop Oversight Platform // Autonomous Systems Tier</p>
+      </div>
+    </div>
+
+    <div class="nav-controls">
+      <div class="view-toggle">
+        <button id="btn-nav-participant" class="view-btn active" onclick="switchView('participant')">Operator Console</button>
+        <button id="btn-nav-presenter" class="view-btn" onclick="switchView('presenter')">Presenter Command</button>
+      </div>
+      <div class="pulse-indicator">
+        <span class="pulse-dot"></span>
+        <span id="header-status-text">SYSTEM ONLINE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="container">
+
+    <!-- ============================================== -->
+    <!-- VIEW 1: PARTICIPANT / OPERATOR EXPERIENCE     -->
+    <!-- ============================================== -->
+    <div id="participant-container">
+
+      <!-- Subview 1A: Join Screen -->
+      <section id="participant-join-view" class="glass-card join-view">
+        <h2>Enter Oversight Console</h2>
+        <p class="subtitle">Join an active operational cohort to supervise autonomous AI decision streams.</p>
+
+        <form id="join-form" onsubmit="handleJoin(event)">
+          <div class="form-group">
+            <label for="input-session-code">Session Code</label>
+            <input type="text" id="input-session-code" class="form-input" value="DEMO-2026" required placeholder="e.g. DEMO-2026">
+          </div>
+          <div class="form-group">
+            <label for="input-alias">Operator Alias</label>
+            <input type="text" id="input-alias" class="form-input" value="Operator-1" required placeholder="e.g. Flight-Lead-01">
+          </div>
+          <button type="submit" id="btn-join-submit" class="btn-primary">Initialize Workstation</button>
+        </form>
+      </section>
+
+      <!-- Subview 1B: Active Oversight Desk -->
+      <section id="participant-active-view" class="hidden">
+        
+        <!-- Practice Indicator Banner (Hidden once scored phase starts) -->
+        <div id="practice-banner" class="practice-banner hidden">
+          <div>
+            <span class="badge-practice">PRACTICE MODE</span>
+            <span>Task familiarization phase (3 unscored requests). Your actions here will NOT impact your final Oversight Score.</span>
+          </div>
+          <span id="practice-countdown-badge">Request 1 of 3</span>
+        </div>
+
+        <!-- Progress HUD -->
+        <div class="progress-hud">
+          <div class="progress-info">
+            <span class="progress-current" id="hud-progress-current">1</span>
+            <span class="progress-total" id="hud-progress-total">/ 53</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;" id="hud-queue-type">ONBOARDING</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="hud-progress-fill" class="progress-bar-fill" style="width: 2%;"></div>
+          </div>
+          <div style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--accent-cyan);" id="hud-operator-badge">
+            OPERATOR: <span id="hud-operator-alias">Operator-1</span>
+          </div>
+        </div>
+
+        <!-- Main Split Oversight Grid -->
+        <div class="oversight-grid">
+          
+          <!-- Left Column: Scenario Dossier -->
+          <div class="glass-card dossier-column">
+            <div class="dossier-header">
+              <span id="scenario-domain" class="domain-badge">INFRASTRUCTURE</span>
+              <span id="scenario-risk" class="risk-badge risk-LOW">LOW RISK</span>
+            </div>
+
+            <h2 id="scenario-title" class="scenario-title">Routine Staging Container Restart</h2>
+            <p id="scenario-desc" class="scenario-desc">Autonomous health daemon requests container restart on staging cluster.</p>
+
+            <h3 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.06em; margin-bottom: 0.5rem;">Request Parameters</h3>
+            <table class="params-table">
+              <tbody id="scenario-params-body">
+                <tr><td class="param-key">Target</td><td class="param-val">worker-stg-04</td></tr>
+              </tbody>
+            </table>
+
+            <h3 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.06em; margin-bottom: 0.5rem;">Diagnostic Traces & Audit Logs</h3>
+            <div class="terminal-block" id="scenario-logs-block">
+              <div class="terminal-line">[10:00:12] Ingestion: Request received</div>
+            </div>
+          </div>
+
+          <!-- Right Column: Autonomous Recommendation & Decision Desk -->
+          <div class="decision-column">
+            
+            <!-- AI Recommendation Card -->
+            <div class="glass-card ai-recommendation-card">
+              <div class="ai-header">
+                <span class="ai-label">Autonomous Agent Proposal</span>
+                <span class="ai-confidence-badge" id="ai-confidence-val">CONFIDENCE: 98.2%</span>
+              </div>
+              <div class="ai-action-box">
+                <div class="ai-action-text" id="ai-action-val">APPROVE</div>
+                <p class="ai-rationale" id="ai-rationale-val">Memory usage on staging worker node #4 exceeds 85%. Standard remediation policy permits automated rolling restart.</p>
+              </div>
+            </div>
+
+            <!-- Decision Desk Controls -->
+            <div class="glass-card action-desk-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                <span style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary);">Human Operator Decision</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);" id="timer-dwell-val">DWELL: 0.0s</span>
+              </div>
+
+              <div class="action-buttons">
+                <button type="button" id="btn-action-approve" class="action-btn btn-approve" onclick="handleDecision('APPROVE')">
+                  <span>APPROVE REQUEST</span>
+                  <span>✔</span>
+                </button>
+                <button type="button" id="btn-action-reject" class="action-btn btn-reject" onclick="handleDecision('REJECT')">
+                  <span>REJECT (POLICY VIOLATION)</span>
+                  <span>✖</span>
+                </button>
+                <button type="button" id="btn-action-escalate" class="action-btn btn-escalate" onclick="handleDecision('ESCALATE')">
+                  <span>ESCALATE FOR SECONDARY REVIEW</span>
+                  <span>▲</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- Subview 1C: Completion & Final Oversight Score Screen -->
+      <section id="participant-completion-view" class="glass-card completion-view hidden">
+        <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem;">Mission Concluded</h2>
+        <p style="color: var(--text-secondary); font-size: 0.95rem;">You have completed all operational supervision requests for this session.</p>
+
+        <div class="score-dial">
+          <div class="score-val" id="final-score-val">100.0</div>
+          <div class="score-label">Oversight Score</div>
+        </div>
+
+        <div class="metrics-summary-grid">
+          <div class="metric-tile">
+            <div class="label">Total Scored Requests</div>
+            <div class="val" id="final-metric-total">50</div>
+          </div>
+          <div class="metric-tile">
+            <div class="label">Policy Probes Intercepted</div>
+            <div class="val" id="final-metric-catch-rate">100%</div>
+          </div>
+          <div class="metric-tile">
+            <div class="label">Catastrophic Approvals</div>
+            <div class="val" id="final-metric-catastrophic">0</div>
+          </div>
+          <div class="metric-tile">
+            <div class="label">Net Achieved Points</div>
+            <div class="val" id="final-metric-net-points">140.0 / 140.0</div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-primary" onclick="resetParticipantView()" style="max-width: 250px; margin: 0 auto;">Return to Welcome</button>
+      </section>
+
+    </div>
+
+
+    <!-- ============================================== -->
+    <!-- VIEW 2: PRESENTER COMMAND CENTER              -->
+    <!-- ============================================== -->
+    <div id="presenter-container" class="presenter-view hidden">
+
+      <!-- Top Session Control Panel -->
+      <div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase;">Active Experiment Session</span>
+          <h2 style="font-size: 1.4rem; font-weight: 800;" id="presenter-session-code-display">DEMO-2026</h2>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+          <input type="text" id="presenter-new-session-code" class="form-input" placeholder="New Code (e.g. COHORT-01)" style="width: 200px;">
+          <button type="button" class="btn-primary" style="margin-top: 0; width: auto;" onclick="handleCreateSession()">Create Session</button>
+          <button type="button" class="btn-primary" style="margin-top: 0; width: auto; background: rgba(255, 255, 255, 0.1);" onclick="refreshPresenterData()">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <!-- Live Cohort Metric Cards -->
+      <div class="stats-overview-grid">
+        <div class="stat-card">
+          <div class="label">Enrolled Operators</div>
+          <div class="number" id="stat-total-enrolled">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Completed Sessions</div>
+          <div class="number" id="stat-total-completed">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Cohort Average SOS</div>
+          <div class="number" id="stat-avg-score">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Catastrophic Passes</div>
+          <div class="number" style="color: var(--accent-rose);" id="stat-total-catastrophic">0</div>
+        </div>
+      </div>
+
+      <!-- Condition A vs Condition B Live Contrast Cards -->
+      <div class="conditions-contrast-grid">
+        <!-- Condition A Card -->
+        <div class="condition-card cond-a">
+          <div class="condition-header">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 800; color: var(--accent-rose); letter-spacing: 0.08em; text-transform: uppercase;">Condition A</span>
+              <div class="condition-title">EXTENDED REVIEW (L = 8)</div>
+            </div>
+            <span class="badge-practice" style="background: rgba(244, 63, 94, 0.2); color: #fca5a5;">High Habituation</span>
+          </div>
+          <div class="condition-metric-row">
+            <span>Enrolled Operators</span>
+            <strong id="cond-a-count">0</strong>
+          </div>
+          <div class="condition-metric-row">
+            <span>Average Oversight Score</span>
+            <strong id="cond-a-avg-score">--</strong>
+          </div>
+          <div class="condition-metric-row">
+            <span>Focal Probe Catch Rate</span>
+            <strong id="cond-a-focal-catch" style="color: var(--accent-rose);">--</strong>
+          </div>
+          <div class="condition-metric-row">
+            <span>Catastrophic Approvals</span>
+            <strong id="cond-a-cat-approvals">0</strong>
+          </div>
+        </div>
+
+        <!-- Condition B Card -->
+        <div class="condition-card cond-b">
+          <div class="condition-header">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 800; color: var(--accent-emerald); letter-spacing: 0.08em; text-transform: uppercase;">Condition B</span>
+              <div class="condition-title">REDUCED REVIEW (L = 1)</div>
+            </div>
+            <span class="badge-practice" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7;">Vigilance Reset</span>
+          </div>
+          <div class="condition-metric-row">
+            <span>Enrolled Operators</span>
+            <strong id="cond-b-count">0</strong>
+          </div>
+          <div class="condition-metric-row">
+            <span>Average Oversight Score</span>
+            <strong id="cond-b-avg-score">--</strong>
+          </div>
+          <div class="condition-metric-row">
+            <span>Focal Probe Catch Rate</span>
+            <strong id="cond-b-focal-catch" style="color: var(--accent-emerald);">--</strong>
+          </div>
+          <div class="condition-metric-row">
+            <span>Catastrophic Approvals</span>
+            <strong id="cond-b-cat-approvals">0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Educational Reveal Section (Presenter-Controlled) -->
+      <div class="glass-card reveal-card">
+        <div class="reveal-header">
+          <div>
+            <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.25rem;">Educational Debrief & Scientific Reveal</h3>
+            <p style="color: var(--text-secondary); font-size: 0.88rem;">Option A Research Findings: Impact of Prior Review Exposure on Automation Complacency</p>
+          </div>
+          <button type="button" id="btn-toggle-reveal" class="reveal-btn" onclick="toggleEducationalReveal()">Unlock Educational Reveal</button>
+        </div>
+
+        <div id="reveal-content-body" class="hidden" style="line-height: 1.6; color: var(--text-secondary); font-size: 0.92rem; border-top: 1px solid var(--border-subtle); padding-top: 1.25rem;">
+          <h4 style="color: #fff; font-size: 1.05rem; margin-bottom: 0.5rem;">What Was Actually Being Measured?</h4>
+          <p style="margin-bottom: 1rem;">
+            Both Condition A and Condition B operated on an <strong>identical user interface</strong> with zero condition-specific scaffolding or warnings. The sole independent variable was the <strong>number of consecutive routine approvals prior to critical policy probes</strong> (local run length $L_{\text{local}}$).
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+            <li><strong>Condition A (Extended Review)</strong>: Evaluated focal probes at positions $k = [9, 21, 33, 45]$ following extended routine runs ($L_{\text{local}} = 8$), inducing automated cognitive habituation.</li>
+            <li><strong>Condition B (Reduced Review)</strong>: Evaluated identical focal probes at positions $k = [9, 21, 33, 45]$ immediately following vigilance reset context probes ($L_{\text{local}} = 1$).</li>
+          </ul>
+          <p>
+            <strong>Scientific Takeaway</strong>: When human operators continuously approve compliant routine recommendations, vigilance decays sharply, leading to severe complacency failures on critical policy breaches. Periodic reset mechanisms and active friction restore human oversight effectiveness.
+          </p>
+        </div>
+      </div>
+
+      <!-- Live Participant Roster -->
+      <div class="glass-card">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;">Active Operator Roster</h3>
+        <table class="roster-table">
+          <thead>
+            <tr>
+              <th>Operator Alias</th>
+              <th>Experimental Condition</th>
+              <th>Progress</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="roster-table-body">
+            <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No participants currently enrolled in this session.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

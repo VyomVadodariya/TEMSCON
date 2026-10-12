@@ -37,7 +37,8 @@ export interface QueueItem {
 }
 
 export interface DecisionSubmission {
-  sessionId: string;
+  sessionId?: string;
+  sessionCode: string;
   participantId: string;
   queueIndex: number;
   assignmentId: string;

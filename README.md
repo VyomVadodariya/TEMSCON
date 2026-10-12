@@ -212,7 +212,7 @@ k6 run test/k6-load-test.js
 
 ## 5. Live Demonstration Runbook (Presenter Guide)
 
-Follow this step-by-step runbook during live presentations, conference talks, or classroom demonstrations.
+A comprehensive, standalone operational runbook is available in [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md). Follow this step-by-step procedure during live presentations, conference talks, or classroom demonstrations:
 
 ```mermaid
 sequenceDiagram
@@ -335,6 +335,7 @@ sequenceDiagram
     ├── postgresPersistence.test.ts # 7 PostgreSQL schema migrations, transactions & idempotency tests
     ├── vercelAdapter.test.ts       # 4 Vercel serverless function entry point tests
     ├── fullSessionSimulation.test.ts # 1 complete multi-participant end-to-end simulation
+    ├── pilotProductionValidation.ts # Live production end-to-end validation suite
     ├── deploymentSmokeTest.ts      # Standalone HTTP smoke test for live/containerized environments
     ├── loadTest.ts                 # Measured empirical in-process load test
     └── k6-load-test.js             # Distributed k6 load testing script for Phase 5

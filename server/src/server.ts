@@ -43,7 +43,6 @@ export function buildServer() {
       return reply.code(201).send({
         participantId: participant.id,
         alias: participant.alias,
-        condition: participant.condition,
         sessionCode: session.sessionCode,
         totalRequests: participant.totalRequests,
         practiceCount: participant.practiceCount,
@@ -134,8 +133,21 @@ export function buildServer() {
   // PRESENTER / ADMIN ROUTES
   // ==========================================
 
-  // Create New Session
+  const PRESENTER_KEY = process.env.PRESENTER_KEY || 'AIOCC_PRESENTER_SECRET_2026';
+  const verifyPresenterAuth = (request: any, reply: any): boolean => {
+    const rawHeader = request.headers['x-presenter-key'] || request.headers['authorization'];
+    const key = typeof rawHeader === 'string' ? rawHeader.replace(/^Bearer\s+/i, '').trim() : '';
+    if (!key || key !== PRESENTER_KEY) {
+      reply.code(401).send({ error: 'Unauthorized: Valid presenter key required' });
+      return false;
+    }
+    return true;
+  };
+
+  // Create New Session (Presenter Protected)
   app.post('/api/v1/presenter/session/create', async (request, reply) => {
+    if (!verifyPresenterAuth(request, reply)) return;
+
     const body = request.body as { sessionCode: string; scoredRequestCount?: number };
     if (!body.sessionCode) {
       return reply.code(400).send({ error: 'Session code is required' });
@@ -152,7 +164,7 @@ export function buildServer() {
     });
   });
 
-  // Get Presenter Aggregate Summary
+  // Get Presenter Aggregate Summary (Public/Presenter Read)
   app.get('/api/v1/presenter/session/summary', async (request, reply) => {
     const query = request.query as { sessionCode?: string };
     const sessionCode = query.sessionCode || 'DEMO-2026';
@@ -164,8 +176,10 @@ export function buildServer() {
     }
   });
 
-  // Toggle Educational Reveal
+  // Toggle Educational Reveal (Presenter Protected)
   app.post('/api/v1/presenter/session/reveal', async (request, reply) => {
+    if (!verifyPresenterAuth(request, reply)) return;
+
     const body = request.body as { sessionCode: string; unlocked: boolean };
     if (!body.sessionCode || typeof body.unlocked !== 'boolean') {
       return reply.code(400).send({ error: 'Missing sessionCode or unlocked boolean flag' });
@@ -174,8 +188,10 @@ export function buildServer() {
     return reply.send({ success, revealUnlocked: body.unlocked });
   });
 
-  // Update Session Lifecycle Status
+  // Update Session Lifecycle Status (Presenter Protected)
   app.post('/api/v1/presenter/session/status', async (request, reply) => {
+    if (!verifyPresenterAuth(request, reply)) return;
+
     const body = request.body as { sessionCode: string; status: 'PENDING' | 'ACTIVE' | 'PAUSED' | 'CONCLUDED' };
     if (!body.sessionCode || !body.status) {
       return reply.code(400).send({ error: 'Missing sessionCode or status' });

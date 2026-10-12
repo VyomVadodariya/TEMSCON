@@ -269,23 +269,34 @@ async function refreshPresenterData() {
     document.getElementById('stat-avg-score').innerText = data.overallMetrics.avgScore ? `${data.overallMetrics.avgScore}` : '--';
     document.getElementById('stat-total-catastrophic').innerText = data.overallMetrics.totalCatastrophicApprovals;
 
-    // Condition A
-    document.getElementById('cond-a-count').innerText = data.conditionAMetrics.count;
-    document.getElementById('cond-a-avg-score').innerText = data.conditionAMetrics.count > 0 ? `${data.conditionAMetrics.avgScore}` : '--';
-    document.getElementById('cond-a-focal-catch').innerText = data.conditionAMetrics.count > 0 ? `${(data.conditionAMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
-    document.getElementById('cond-a-cat-approvals').innerText = data.conditionAMetrics.totalCatastrophicApprovals;
+    // Condition Metrics (Masked until Reveal Unlocked)
+    if (data.conditionAMetrics && data.conditionBMetrics) {
+      document.getElementById('cond-a-count').innerText = data.conditionAMetrics.count;
+      document.getElementById('cond-a-avg-score').innerText = data.conditionAMetrics.count > 0 ? `${data.conditionAMetrics.avgScore}` : '--';
+      document.getElementById('cond-a-focal-catch').innerText = data.conditionAMetrics.count > 0 ? `${(data.conditionAMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
+      document.getElementById('cond-a-cat-approvals').innerText = data.conditionAMetrics.totalCatastrophicApprovals;
 
-    // Condition B
-    document.getElementById('cond-b-count').innerText = data.conditionBMetrics.count;
-    document.getElementById('cond-b-avg-score').innerText = data.conditionBMetrics.count > 0 ? `${data.conditionBMetrics.avgScore}` : '--';
-    document.getElementById('cond-b-focal-catch').innerText = data.conditionBMetrics.count > 0 ? `${(data.conditionBMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
-    document.getElementById('cond-b-cat-approvals').innerText = data.conditionBMetrics.totalCatastrophicApprovals;
+      document.getElementById('cond-b-count').innerText = data.conditionBMetrics.count;
+      document.getElementById('cond-b-avg-score').innerText = data.conditionBMetrics.count > 0 ? `${data.conditionBMetrics.avgScore}` : '--';
+      document.getElementById('cond-b-focal-catch').innerText = data.conditionBMetrics.count > 0 ? `${(data.conditionBMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
+      document.getElementById('cond-b-cat-approvals').innerText = data.conditionBMetrics.totalCatastrophicApprovals;
+    } else {
+      document.getElementById('cond-a-count').innerText = 'Masked';
+      document.getElementById('cond-a-avg-score').innerText = '🔒 Masked';
+      document.getElementById('cond-a-focal-catch').innerText = '🔒 Masked';
+      document.getElementById('cond-a-cat-approvals').innerText = '🔒 Masked';
+
+      document.getElementById('cond-b-count').innerText = 'Masked';
+      document.getElementById('cond-b-avg-score').innerText = '🔒 Masked';
+      document.getElementById('cond-b-focal-catch').innerText = '🔒 Masked';
+      document.getElementById('cond-b-cat-approvals').innerText = '🔒 Masked';
+    }
 
     // Reveal State
     const revealBtn = document.getElementById('btn-toggle-reveal');
     const revealBody = document.getElementById('reveal-content-body');
     if (data.revealUnlocked) {
-      revealBtn.innerText = 'Educational Reveal Unlocked';
+      revealBtn.innerText = 'Educational Reveal Unlocked (Active)';
       revealBtn.style.background = 'rgba(16, 185, 129, 0.4)';
       revealBody.classList.remove('hidden');
     } else {
@@ -302,9 +313,13 @@ async function refreshPresenterData() {
       tbody.innerHTML = '';
       data.participantsList.forEach(p => {
         const tr = document.createElement('tr');
-        const condBadge = p.condition === 'EXTENDED_REVIEW' 
-          ? '<span style="color: var(--accent-rose); font-weight:700;">Condition A (Extended)</span>'
-          : '<span style="color: var(--accent-emerald); font-weight:700;">Condition B (Reduced)</span>';
+        let condBadge = '<span style="color: var(--text-muted);">Operator (Masked)</span>';
+        if (p.condition === 'EXTENDED_REVIEW') {
+          condBadge = '<span style="color: var(--accent-rose); font-weight:700;">Condition A (Extended)</span>';
+        } else if (p.condition === 'REDUCED_REVIEW') {
+          condBadge = '<span style="color: var(--accent-emerald); font-weight:700;">Condition B (Reduced)</span>';
+        }
+
         const statusBadge = p.isCompleted 
           ? '<span style="color: var(--accent-emerald);">COMPLETED</span>' 
           : `<span style="color: var(--accent-cyan); font-family: var(--font-mono);">${p.currentProgress} / ${p.totalRequests}</span>`;
@@ -323,6 +338,8 @@ async function refreshPresenterData() {
   }
 }
 
+const PRESENTER_KEY = 'AIOCC_PRESENTER_SECRET_2026';
+
 async function handleCreateSession() {
   const input = document.getElementById('presenter-new-session-code');
   const sessionCode = input.value.trim().toUpperCase();
@@ -334,7 +351,10 @@ async function handleCreateSession() {
   try {
     const res = await fetch('/api/v1/presenter/session/create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-presenter-key': PRESENTER_KEY
+      },
       body: JSON.stringify({ sessionCode, scoredRequestCount: 50 })
     });
     const data = await res.json();
@@ -355,7 +375,10 @@ async function toggleEducationalReveal() {
   try {
     const res = await fetch('/api/v1/presenter/session/reveal', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-presenter-key': PRESENTER_KEY
+      },
       body: JSON.stringify({ sessionCode, unlocked: !isCurrentlyUnlocked })
     });
     const data = await res.json();

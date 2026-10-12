@@ -22,7 +22,7 @@ describe('AIOCC End-to-End API Integration Suite', () => {
     assert.equal(body.status, 'UP');
   });
 
-  it('POST /api/v1/participant/session/join enrolls participant with balanced condition', async () => {
+  it('POST /api/v1/participant/session/join enrolls participant with balanced condition without leaking condition to client', async () => {
     // Join Participant 1
     const res1 = await app.inject({
       method: 'POST',
@@ -33,7 +33,7 @@ describe('AIOCC End-to-End API Integration Suite', () => {
     const body1 = JSON.parse(res1.payload);
     assert.ok(body1.participantId);
     assert.equal(body1.alias, 'Operator-Alpha');
-    assert.equal(body1.condition, 'EXTENDED_REVIEW');
+    assert.equal(body1.condition, undefined, 'Client must not receive condition metadata');
     assert.equal(body1.totalRequests, 53); // 3 practice + 50 scored
 
     // Join Participant 2
@@ -44,7 +44,7 @@ describe('AIOCC End-to-End API Integration Suite', () => {
     });
     assert.equal(res2.statusCode, 201);
     const body2 = JSON.parse(res2.payload);
-    assert.equal(body2.condition, 'REDUCED_REVIEW'); // Balanced condition alternation!
+    assert.equal(body2.condition, undefined);
   });
 
   it('GET /api/v1/participant/session/current returns scrubbed scenario and correct progress', async () => {
@@ -120,10 +120,13 @@ describe('AIOCC End-to-End API Integration Suite', () => {
   });
 
   it('Presenter Workflow: create session, aggregate summary, reveal control', async () => {
+    const PRESENTER_KEY = 'AIOCC_PRESENTER_SECRET_2026';
+
     // 1. Create Session
     const createRes = await app.inject({
       method: 'POST',
       url: '/api/v1/presenter/session/create',
+      headers: { 'x-presenter-key': PRESENTER_KEY },
       payload: { sessionCode: 'COHORT-88', scoredRequestCount: 40 }
     });
     assert.equal(createRes.statusCode, 201);
@@ -145,6 +148,7 @@ describe('AIOCC End-to-End API Integration Suite', () => {
     const revRes = await app.inject({
       method: 'POST',
       url: '/api/v1/presenter/session/reveal',
+      headers: { 'x-presenter-key': PRESENTER_KEY },
       payload: { sessionCode: 'COHORT-88', unlocked: true }
     });
     assert.equal(revRes.statusCode, 200);

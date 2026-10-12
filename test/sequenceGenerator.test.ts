@@ -66,15 +66,36 @@ describe('Sequence Generator Tests (Option A Feasibility & Matching)', () => {
     }
   });
 
-  it('supports configurable session lengths between 30 and 80', () => {
-    const queue30 = generateParticipantQueue({ condition: 'EXTENDED_REVIEW', scoredRequestCount: 30 });
-    assert.equal(queue30.length, 33);
+  it('supports configurable session lengths (30, 50, 80) with identical focal probe positions', () => {
+    for (const count of [30, 50, 80]) {
+      const qA = generateParticipantQueue({ condition: 'EXTENDED_REVIEW', scoredRequestCount: count });
+      const qB = generateParticipantQueue({ condition: 'REDUCED_REVIEW', scoredRequestCount: count });
 
-    const queue80 = generateParticipantQueue({ condition: 'REDUCED_REVIEW', scoredRequestCount: 80 });
-    assert.equal(queue80.length, 83);
+      assert.equal(qA.length, count + 3, `Queue A length must be ${count + 3}`);
+      assert.equal(qB.length, count + 3, `Queue B length must be ${count + 3}`);
+
+      const scoredA = qA.filter(q => !q.isPractice);
+      const scoredB = qB.filter(q => !q.isPractice);
+
+      const focalA = scoredA.map((it, idx) => (it.scenario.isProbe && it.scenario.probeType === 'FOCAL' ? idx + 1 : null)).filter(Boolean);
+      const focalB = scoredB.map((it, idx) => (it.scenario.isProbe && it.scenario.probeType === 'FOCAL' ? idx + 1 : null)).filter(Boolean);
+
+      assert.equal(focalA.length, 4, `Must have 4 focal probes at count ${count}`);
+      assert.equal(focalB.length, 4, `Must have 4 focal probes at count ${count}`);
+      assert.deepEqual(focalA, focalB, `Focal probe positions must match between Condition A and B at count ${count}`);
+
+      const totalProbesA = scoredA.filter(it => it.scenario.isProbe).length;
+      const totalProbesB = scoredB.filter(it => it.scenario.isProbe).length;
+      assert.equal(totalProbesA, 8, `Must have exactly 8 total probes at count ${count}`);
+      assert.equal(totalProbesB, 8, `Must have exactly 8 total probes at count ${count}`);
+    }
 
     assert.throws(() => {
       generateParticipantQueue({ condition: 'EXTENDED_REVIEW', scoredRequestCount: 25 });
+    }, /Invalid scoredRequestCount/);
+
+    assert.throws(() => {
+      generateParticipantQueue({ condition: 'EXTENDED_REVIEW', scoredRequestCount: 85 });
     }, /Invalid scoredRequestCount/);
   });
 });

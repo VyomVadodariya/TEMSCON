@@ -70,23 +70,30 @@ The application will start on `http://localhost:3000`:
 All unit, sequence feasibility, scoring regression, and end-to-end integration tests run via:
 
 ```bash
-# Execute entire test suite
+# Execute entire test suite (24 tests across 6 suites)
 npm test
 
 # Run scoring regression tests (all 6 canonical worked examples + boundary cases)
 npm run test:scoring
 
-# Run Option A sequence generator feasibility tests
+# Run Option A sequence generator feasibility tests (30, 50, 80 queue lengths)
 npm run test:sequence
 
 # Run end-to-end API integration tests
 npm run test:e2e
+
+# Run measured in-process load test
+npm run test:load
 ```
 
 ### Verified Test Results Summary
 - `test/scoringEngine.test.ts`: 7 tests passing (`SOS = 100.00` for flawless operator, `SOS = 0.00` for blind approver, compounding penalty progression $M=0 \dots 4$).
 - `test/sequenceGenerator.test.ts`: 4 tests passing (exact 3 practice items, 50 scored items, $k = [9, 21, 33, 45]$ focal positions, $L_{\text{local}}=8$ vs $L_{\text{local}}=1$, configurable range 30–80).
 - `test/e2e.test.ts`: 5 tests passing (health checks, balanced participant enrollment, client payload answer scrubbing, idempotent retry deduplication, presenter session creation and reveal toggling).
+- `test/securityAndPrivacy.test.ts`: 4 tests passing (zero ground truth/probe flags leaked to client, mutating presenter endpoints protected by `x-presenter-key`, hypothesis privacy masking before reveal, sequence mismatch validation).
+- `test/reliabilityAndPersistence.test.ts`: 3 tests passing (idempotent duplicate submission handling, uncompleted session timeouts, state serialization and restoration).
+- `test/fullSessionSimulation.test.ts`: 1 test passing (53-request full lifecycle simulation of Complacent vs Vigilant operators, verifying condition-level contrast and educational reveal).
+- `test/loadTest.ts`: Measured empirical load test (50 VUs, $p95 = 4.56\text{ ms}$, 0% error rate). Note: distributed 200-participant load target remains an unverified provisional target pending Phase 5 k6 testing.
 
 ---
 

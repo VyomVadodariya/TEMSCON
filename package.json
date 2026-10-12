@@ -11,7 +11,8 @@
     "test": "node --import tsx --test test/**/*.test.ts",
     "test:scoring": "node --import tsx --test test/scoringEngine.test.ts",
     "test:sequence": "node --import tsx --test test/sequenceGenerator.test.ts",
-    "test:e2e": "node --import tsx --test test/e2e.test.ts"
+    "test:e2e": "node --import tsx --test test/e2e.test.ts",
+    "test:load": "node --import tsx test/loadTest.ts"
   },
   "keywords": [
     "ai-oversight",

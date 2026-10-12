@@ -126,12 +126,19 @@ export class SessionStore {
     const rawItem = participant.queue[current - 1];
     const practiceRemaining = Math.max(0, participant.practiceCount - current + 1);
 
-    // Client-safe payload: Scrub server-only ground truth answers to prevent inspection cheat!
-    const clientSafeScenario = {
-      ...rawItem.scenario,
-      // Scrub hidden fields
-      optimalAction: undefined as any,
-      policyNotes: undefined
+    // Client-safe payload: Scrub server-only ground truth answers, probe designations, and true classes
+    const clientSafeScenario: any = {
+      id: rawItem.scenario.id,
+      templateId: rawItem.scenario.templateId,
+      title: rawItem.scenario.title,
+      domain: rawItem.scenario.domain,
+      riskTier: rawItem.scenario.riskTier,
+      aiRecommendation: rawItem.scenario.aiRecommendation,
+      aiConfidence: rawItem.scenario.aiConfidence,
+      aiRationale: rawItem.scenario.aiRationale,
+      description: rawItem.scenario.description,
+      parameters: rawItem.scenario.parameters,
+      systemLogs: rawItem.scenario.systemLogs
     };
 
     const clientItem: QueueItem = {
@@ -170,6 +177,16 @@ export class SessionStore {
       };
     }
 
+    // Sequence & Assignment Validation
+    if (submission.queueIndex !== participant.currentQueueIndex) {
+      throw new Error(`Sequence mismatch: Submitted queueIndex ${submission.queueIndex} does not match current active queueIndex ${participant.currentQueueIndex}`);
+    }
+
+    const expectedAssignmentId = `assign-${participant.currentQueueIndex}`;
+    if (submission.assignmentId !== expectedAssignmentId) {
+      throw new Error(`Assignment mismatch: Submitted assignmentId ${submission.assignmentId} does not match expected ${expectedAssignmentId}`);
+    }
+
     const currentItem = participant.queue[participant.currentQueueIndex - 1];
     if (!currentItem) {
       throw new Error('Session is already completed.');
@@ -186,7 +203,7 @@ export class SessionStore {
       decision: submission.decision,
       optimalAction: currentItem.scenario.optimalAction,
       isOptimal: submission.decision === currentItem.scenario.optimalAction,
-      dwellTimeMs: Math.max(100, submission.dwellTimeMs || 0),
+      dwellTimeMs: Math.max(100, Math.min(3600000, submission.dwellTimeMs || 0)),
       submittedAt: Date.now(),
       rawPoints,
       isCatastrophicApproval: sClass === 'CATASTROPHIC_PROBE' && submission.decision === 'APPROVE'
@@ -276,6 +293,8 @@ export class SessionStore {
       };
     };
 
+    const isRevealed = session.revealUnlocked || session.status === 'CONCLUDED';
+
     return {
       sessionCode: session.sessionCode,
       status: session.status,
@@ -284,12 +303,12 @@ export class SessionStore {
       totalEnrolled,
       completedCount: completed.length,
       overallMetrics: getAggregateMetrics(participants),
-      conditionAMetrics: getAggregateMetrics(conditionA),
-      conditionBMetrics: getAggregateMetrics(conditionB),
+      conditionAMetrics: isRevealed ? getAggregateMetrics(conditionA) : null,
+      conditionBMetrics: isRevealed ? getAggregateMetrics(conditionB) : null,
       participantsList: participants.map(p => ({
         id: p.id,
         alias: p.alias,
-        condition: p.condition,
+        condition: isRevealed ? p.condition : 'MASKED',
         currentProgress: Math.min(p.queue.length, p.currentQueueIndex - 1),
         totalRequests: p.queue.length,
         isCompleted: p.currentQueueIndex > p.queue.length,
@@ -297,6 +316,67 @@ export class SessionStore {
         completedAt: p.completedAt
       }))
     };
+  }
+
+  public exportState(): string {
+    const rawSessions = Array.from(this.sessions.entries()).map(([code, s]) => ({
+      code,
+      status: s.status,
+      scoredRequestCount: s.scoredRequestCount,
+      createdAt: s.createdAt,
+      revealUnlocked: s.revealUnlocked,
+      participants: Array.from(s.participants.entries()).map(([pId, p]) => ({
+        id: p.id,
+        alias: p.alias,
+        condition: p.condition,
+        sessionCode: p.sessionCode,
+        currentQueueIndex: p.currentQueueIndex,
+        totalRequests: p.totalRequests,
+        practiceCount: p.practiceCount,
+        scoredCount: p.scoredCount,
+        queue: p.queue,
+        decisions: Array.from(p.decisions.entries()),
+        startedAt: p.startedAt,
+        completedAt: p.completedAt,
+        isWithdrawn: p.isWithdrawn
+      }))
+    }));
+    return JSON.stringify({ version: '1.0.0', sessions: rawSessions });
+  }
+
+  public importState(jsonString: string): void {
+    const parsed = JSON.parse(jsonString);
+    if (!parsed || !Array.isArray(parsed.sessions)) return;
+
+    for (const rawS of parsed.sessions) {
+      const participantsMap = new Map<string, ParticipantSession>();
+      for (const rawP of rawS.participants) {
+        participantsMap.set(rawP.id, {
+          id: rawP.id,
+          alias: rawP.alias,
+          condition: rawP.condition,
+          sessionCode: rawP.sessionCode,
+          currentQueueIndex: rawP.currentQueueIndex,
+          totalRequests: rawP.totalRequests,
+          practiceCount: rawP.practiceCount,
+          scoredCount: rawP.scoredCount,
+          queue: rawP.queue,
+          decisions: new Map(rawP.decisions),
+          startedAt: rawP.startedAt,
+          completedAt: rawP.completedAt,
+          isWithdrawn: rawP.isWithdrawn
+        });
+      }
+
+      this.sessions.set(rawS.code, {
+        sessionCode: rawS.code,
+        status: rawS.status,
+        scoredRequestCount: rawS.scoredRequestCount,
+        createdAt: rawS.createdAt,
+        revealUnlocked: rawS.revealUnlocked,
+        participants: participantsMap
+      });
+    }
   }
 }
 

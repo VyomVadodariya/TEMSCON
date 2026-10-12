@@ -19,6 +19,49 @@ export interface ServerOptions {
   databaseUrl?: string;
 }
 
+/**
+ * Resolves the original requested URL before Vercel proxy rewrites.
+ * Used by Fastify's native rewriteUrl option and serverless adapters.
+ */
+export function resolveOriginalUrl(req: { url?: string; headers: Record<string, any> }): string {
+  const currentUrl = req.url || '/';
+
+  // 1. Check if Vercel passed query parameter __path from rewrite rule
+  try {
+    const parsed = new URL(currentUrl, 'http://localhost');
+    const pathParam = parsed.searchParams.get('__path');
+    if (pathParam) {
+      parsed.searchParams.delete('__path');
+      parsed.searchParams.delete('match'); // Strip Vercel wildcard artifact
+      const search = parsed.search; // preserves remaining query string e.g. "?sessionCode=DEMO-2026"
+      return `${pathParam}${search}`;
+    }
+  } catch {
+    // ignore URL parse errors and fall through
+  }
+
+  // 2. Check Vercel/proxy routing headers
+  const matchedPath = (req.headers['x-matched-path'] as string) ||
+                      (req.headers['x-forwarded-url'] as string) ||
+                      (req.headers['x-original-url'] as string) ||
+                      (req.headers['x-rewrite-url'] as string);
+
+  if (matchedPath && matchedPath !== '/api/index' && matchedPath !== '/api') {
+    if (!matchedPath.includes('?') && currentUrl.includes('?')) {
+      const search = currentUrl.slice(currentUrl.indexOf('?'));
+      return `${matchedPath}${search}`;
+    }
+    return matchedPath;
+  }
+
+  // 3. Fallback: If Vercel rewrote /health or root to bare /api/index without params
+  if (currentUrl === '/api/index' || currentUrl === '/api' || currentUrl === '/api/') {
+    return '/health';
+  }
+
+  return currentUrl;
+}
+
 export function buildServer(options?: ServerOptions) {
   const isVercel = process.env.VERCEL === '1';
   const isProduction = options?.isProduction !== undefined
@@ -48,7 +91,8 @@ export function buildServer(options?: ServerOptions) {
 
   const app = fastify({
     logger: false, // Clean console output for tests
-    trustProxy: true
+    trustProxy: true,
+    rewriteUrl: (req) => resolveOriginalUrl(req)
   });
 
   // Support both standard Node streaming and serverless pre-parsed JSON bodies

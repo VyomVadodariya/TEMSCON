@@ -13,6 +13,7 @@ let participantState = {
 
 let dwellTimer = null;
 let presenterPollTimer = null;
+let resultsPollTimer = null;
 
 // ==========================================
 // VIEW SWITCHING
@@ -22,33 +23,55 @@ function switchView(viewName) {
   currentView = viewName;
 
   const btnPart = document.getElementById('btn-nav-participant');
+  const btnRes = document.getElementById('btn-nav-results');
   const btnPres = document.getElementById('btn-nav-presenter');
+
   const containerPart = document.getElementById('participant-container');
+  const containerRes = document.getElementById('results-container');
   const containerPres = document.getElementById('presenter-container');
 
+  // Clear polling timers
+  if (presenterPollTimer) clearInterval(presenterPollTimer);
+  if (resultsPollTimer) clearInterval(resultsPollTimer);
+
+  if (btnPart) btnPart.classList.toggle('active', viewName === 'participant');
+  if (btnRes) btnRes.classList.toggle('active', viewName === 'results');
+  if (btnPres) btnPres.classList.toggle('active', viewName === 'presenter');
+
+  if (containerPart) containerPart.classList.toggle('hidden', viewName !== 'participant');
+  if (containerRes) containerRes.classList.toggle('hidden', viewName !== 'results');
+  if (containerPres) containerPres.classList.toggle('hidden', viewName !== 'presenter');
+
   if (viewName === 'participant') {
-    btnPart.classList.add('active');
-    btnPres.classList.remove('active');
-    containerPart.classList.remove('hidden');
-    containerPres.classList.add('hidden');
-    if (presenterPollTimer) clearInterval(presenterPollTimer);
-  } else {
-    btnPres.classList.add('active');
-    btnPart.classList.remove('active');
-    containerPres.classList.remove('hidden');
-    containerPart.classList.add('hidden');
+    if (window.location.hash === '#presenter' || window.location.hash === '#results') {
+      history.replaceState(null, '', window.location.pathname);
+    }
+  } else if (viewName === 'results') {
+    window.location.hash = '#results';
+    refreshResultsView();
+    resultsPollTimer = setInterval(refreshResultsView, 3000);
+  } else if (viewName === 'presenter') {
+    window.location.hash = '#presenter';
     updatePresenterAuthIndicator();
     refreshPresenterData();
     presenterPollTimer = setInterval(refreshPresenterData, 3000);
   }
 }
 
-// Check URL hash for direct presenter linking
-if (window.location.hash === '#presenter') {
-  switchView('presenter');
-} else {
-  updatePresenterAuthIndicator();
+function handleHashRouting() {
+  const hash = window.location.hash;
+  if (hash === '#presenter') {
+    switchView('presenter');
+  } else if (hash === '#results') {
+    switchView('results');
+  } else {
+    switchView('participant');
+    updatePresenterAuthIndicator();
+  }
 }
+
+window.addEventListener('hashchange', handleHashRouting);
+handleHashRouting();
 
 // ==========================================
 // PARTICIPANT WORKFLOW
@@ -464,4 +487,118 @@ async function toggleEducationalReveal() {
   } catch (err) {
     alert(err.message);
   }
+}
+
+// ==========================================
+// SIMULATOR RESULTS DASHBOARD LOGIC
+// ==========================================
+
+async function refreshResultsView() {
+  const sessionInput = document.getElementById('results-session-input');
+  const sessionCode = (sessionInput ? sessionInput.value.trim() : '') || participantState.sessionCode || 'DEMO-2026';
+
+  try {
+    const res = await fetch(`/api/v1/session/results?sessionCode=${encodeURIComponent(sessionCode)}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Failed to fetch results (HTTP ${res.status})`);
+    }
+    const data = await res.json();
+    renderSimulatorResults(data);
+  } catch (err) {
+    renderResultsErrorState(err.message);
+  }
+}
+
+function renderSimulatorResults(data) {
+  // 1. Status badge
+  const badge = document.getElementById('results-status-badge');
+  if (badge) {
+    badge.className = 'badge-status';
+    if (data.sessionStatus === 'RESULTS_AVAILABLE') {
+      badge.classList.add('available');
+      badge.innerText = 'RESULTS AVAILABLE';
+    } else if (data.sessionStatus === 'IN_PROGRESS') {
+      badge.classList.add('in-progress');
+      badge.innerText = 'SESSION IN PROGRESS';
+    } else {
+      badge.classList.add('awaiting');
+      badge.innerText = 'AWAITING REAL DATA';
+    }
+  }
+
+  // Helper to update individual card elements
+  const updateCard = (prefix, card, isUnsafe = false) => {
+    const valEl = document.getElementById(`res-val-${prefix}`);
+    const pillEl = document.getElementById(`pill-${prefix}`);
+    const subEl = document.getElementById(`sub-${prefix}`);
+    const unitEl = document.getElementById(`unit-${prefix}`);
+
+    if (valEl) {
+      valEl.innerText = card.formattedValue || '—';
+      if (isUnsafe) {
+        if (typeof card.value === 'number' && card.value > 0) {
+          valEl.classList.add('active-risk');
+        } else {
+          valEl.classList.remove('active-risk');
+        }
+      }
+    }
+    if (unitEl) {
+      unitEl.innerText = card.unit || '';
+    }
+    if (pillEl) {
+      pillEl.className = 'card-status-pill';
+      if (card.status === 'AVAILABLE') {
+        pillEl.classList.add('available');
+        pillEl.innerText = isUnsafe
+          ? (card.value === 0 ? 'Zero Violations' : 'Critical Flags')
+          : 'Real Data';
+      } else if (card.status === 'INSUFFICIENT_DATA') {
+        pillEl.classList.add('insufficient');
+        pillEl.innerText = 'Partial Data';
+      } else {
+        pillEl.classList.add('awaiting');
+        pillEl.innerText = 'Awaiting real data';
+      }
+    }
+    if (subEl) {
+      subEl.innerText = card.subtext || '';
+    }
+  };
+
+  const cards = data.cards || {};
+  if (cards.totalApprovals) updateCard('approvals', cards.totalApprovals);
+  if (cards.correctDecisions) updateCard('correct', cards.correctDecisions);
+  if (cards.unsafeApprovals) updateCard('unsafe', cards.unsafeApprovals, true);
+  if (cards.medianDecisionTime) updateCard('dwell', cards.medianDecisionTime);
+  if (cards.earlyVsLateReview) updateCard('earlylate', cards.earlyVsLateReview);
+
+  // Metadata summary counts
+  const elEnrolled = document.getElementById('res-meta-enrolled');
+  if (elEnrolled) elEnrolled.innerText = data.totalEnrolled || 0;
+
+  const elCompleted = document.getElementById('res-meta-completed');
+  if (elCompleted) elCompleted.innerText = data.completedCount || 0;
+
+  const elDecisions = document.getElementById('res-meta-decisions');
+  if (elDecisions) elDecisions.innerText = data.totalScoredDecisions || 0;
+}
+
+function renderResultsErrorState(message) {
+  const badge = document.getElementById('results-status-badge');
+  if (badge) {
+    badge.className = 'badge-status awaiting';
+    badge.innerText = 'CONNECTION ERROR';
+  }
+  const prefixes = ['approvals', 'correct', 'unsafe', 'dwell', 'earlylate'];
+  prefixes.forEach(prefix => {
+    const sub = document.getElementById(`sub-${prefix}`);
+    if (sub) sub.innerText = `Unavailable: ${message}`;
+    const pill = document.getElementById(`pill-${prefix}`);
+    if (pill) {
+      pill.className = 'card-status-pill awaiting';
+      pill.innerText = 'Offline';
+    }
+  });
 }

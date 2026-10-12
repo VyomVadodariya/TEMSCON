@@ -111,6 +111,7 @@ You can use any managed PostgreSQL provider (e.g., [Neon.tech](https://neon.tech
 - **Live Verified Deployment**:
   - **Health Check**: [`https://temscon-three.vercel.app/health`](https://temscon-three.vercel.app/health) -> returns `{"status":"UP","service":"AIOCC-Backend","persistence":"PostgreSQL"}`.
   - **Operator Interface**: [`https://temscon-three.vercel.app/`](https://temscon-three.vercel.app/)
+  - **Simulator Results Dashboard**: [`https://temscon-three.vercel.app/#results`](https://temscon-three.vercel.app/#results)
   - **Presenter Console**: [`https://temscon-three.vercel.app/#presenter`](https://temscon-three.vercel.app/#presenter)
 
 > **Serverless Persistence Guarantee**: The application refuses to silently fall back to ephemeral container/lambda disk storage in production. If `DATABASE_URL` is omitted in Vercel or production mode, startup fails closed with `FATAL PERSISTENCE ERROR`.
@@ -318,18 +319,20 @@ sequenceDiagram
 │   │   └── services/
 │   │       ├── sequenceGenerator.ts     # Option A sequence allocation engine
 │   │       ├── scoringEngine.ts         # Canonical Scoring Contract v1.0.0
+│   │       ├── simulatorResults.ts      # Phase 4.1 5-card activity results aggregation engine
 │   │       ├── sessionStore.ts          # Server-authoritative in-memory / file snapshot store
 │   │       └── postgresSessionStore.ts  # Production PostgreSQL transactional persistence engine
 ├── public/
-│   ├── index.html                  # Responsive Single Page Application with masked contrast view
+│   ├── index.html                  # Responsive Single Page Application with results dashboard
 │   ├── css/
 │   │   └── styles.css              # Obsidian dark theme, glassmorphism, micro-animations
 │   └── js/
-│       └── app.js                  # Participant and Presenter client runtime with credential management
+│       └── app.js                  # Participant, Results, and Presenter client runtime
 └── test/
     ├── scoringEngine.test.ts       # 7 canonical scoring verification tests
+    ├── simulatorResults.test.ts    # 5 Phase 4.1 Simulator Results metric calculation tests
     ├── sequenceGenerator.test.ts   # 4 Option A sequence allocation tests
-    ├── e2e.test.ts                 # 5 end-to-end API integration tests
+    ├── e2e.test.ts                 # 6 end-to-end API integration tests
     ├── securityAndPrivacy.test.ts  # 7 security, rate limiting, and hypothesis privacy tests
     ├── reliabilityAndPersistence.test.ts # 4 reliability, deduplication, and file persistence tests
     ├── postgresPersistence.test.ts # 7 PostgreSQL schema migrations, transactions & idempotency tests

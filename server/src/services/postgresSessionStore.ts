@@ -10,6 +10,7 @@ import {
 } from '../types.js';
 import { generateParticipantQueue } from './sequenceGenerator.js';
 import { computeSessionScore, SCORING_MATRIX } from './scoringEngine.js';
+import { computeSimulatorResults } from './simulatorResults.js';
 
 export interface PostgresStoreOptions {
   connectionString?: string;
@@ -658,6 +659,7 @@ export class PostgresSessionStore {
       overallMetrics: getAggregateMetrics(participants, !isRevealed),
       conditionAMetrics: isRevealed ? getAggregateMetrics(conditionA, false) : null,
       conditionBMetrics: isRevealed ? getAggregateMetrics(conditionB, false) : null,
+      simulatorResults: computeSimulatorResults(session),
       participantsList: participants.map(p => ({
         id: p.id,
         alias: p.alias,
@@ -669,6 +671,14 @@ export class PostgresSessionStore {
         completedAt: p.completedAt
       }))
     };
+  }
+
+  public async getSimulatorResults(sessionCode: string) {
+    const session = await this.getSession(sessionCode);
+    if (!session) {
+      throw new Error(`Session ${sessionCode} not found.`);
+    }
+    return computeSimulatorResults(session);
   }
 
   public async close(): Promise<void> {

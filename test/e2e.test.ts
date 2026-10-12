@@ -154,4 +154,86 @@ describe('AIOCC End-to-End API Integration Suite', () => {
     const revBody = JSON.parse(revRes.payload);
     assert.equal(revBody.revealUnlocked, true);
   });
+
+  it('Simulator Results Endpoint: returns 5-card results with empty state initially and real stats after decisions', async () => {
+    // 1. Initial empty state for fresh session
+    const resEmpty = await app.inject({
+      method: 'GET',
+      url: '/api/v1/session/results?sessionCode=COHORT-88'
+    });
+    assert.equal(resEmpty.statusCode, 200);
+    const bodyEmpty = JSON.parse(resEmpty.payload);
+    assert.equal(bodyEmpty.sessionCode, 'COHORT-88');
+    assert.equal(bodyEmpty.sessionStatus, 'AWAITING_DATA');
+    assert.equal(bodyEmpty.cards.totalApprovals.formattedValue, '—');
+    assert.equal(bodyEmpty.cards.totalApprovals.status, 'AWAITING_DATA');
+    assert.equal(bodyEmpty.cards.correctDecisions.status, 'AWAITING_DATA');
+    assert.equal(bodyEmpty.cards.unsafeApprovals.status, 'AWAITING_DATA');
+    assert.equal(bodyEmpty.cards.medianDecisionTime.status, 'AWAITING_DATA');
+    assert.equal(bodyEmpty.cards.earlyVsLateReview.status, 'AWAITING_DATA');
+
+    // 2. Join participant and submit 3 practice + 1 scored decision
+    const joinRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/participant/session/join',
+      payload: { sessionCode: 'COHORT-88', alias: 'ResultsTester' }
+    });
+    const joinData = JSON.parse(joinRes.payload);
+
+    // Complete 3 practice items
+    for (let q = 1; q <= 3; q++) {
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/participant/decisions',
+        payload: {
+          sessionCode: 'COHORT-88',
+          participantId: joinData.participantId,
+          queueIndex: q,
+          assignmentId: `assign-${q}`,
+          decision: 'APPROVE',
+          dwellTimeMs: 2000,
+          idempotencyKey: `idem-cohort88-${q}`
+        }
+      });
+    }
+
+    // Still in AWAITING_DATA because practice items are excluded!
+    const resPractice = await app.inject({
+      method: 'GET',
+      url: '/api/v1/session/results?sessionCode=COHORT-88'
+    });
+    const bodyPractice = JSON.parse(resPractice.payload);
+    assert.equal(bodyPractice.totalScoredDecisions, 0, 'Practice decisions must be excluded from scored results');
+    assert.equal(bodyPractice.cards.totalApprovals.formattedValue, '—');
+
+    // Submit scored item 4 (first scored item: queueIndex 4)
+    const scoredRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/participant/decisions',
+      payload: {
+        sessionCode: 'COHORT-88',
+        participantId: joinData.participantId,
+        queueIndex: 4,
+        assignmentId: 'assign-4',
+        decision: 'APPROVE',
+        dwellTimeMs: 3200,
+        idempotencyKey: 'idem-cohort88-4'
+      }
+    });
+    assert.equal(scoredRes.statusCode, 201);
+
+    // Now scored results should reflect 1 decision!
+    const resScored = await app.inject({
+      method: 'GET',
+      url: '/api/v1/session/results?sessionCode=COHORT-88'
+    });
+    const bodyScored = JSON.parse(resScored.payload);
+    assert.equal(bodyScored.totalScoredDecisions, 1);
+    assert.equal(bodyScored.cards.totalApprovals.status, 'AVAILABLE');
+    assert.equal(bodyScored.cards.totalApprovals.value, 1);
+    assert.equal(bodyScored.cards.totalApprovals.formattedValue, '1');
+    assert.equal(bodyScored.cards.medianDecisionTime.status, 'AVAILABLE');
+    assert.equal(bodyScored.cards.medianDecisionTime.value, 3.2);
+    assert.equal(bodyScored.cards.medianDecisionTime.formattedValue, '3.2s');
+  });
 });

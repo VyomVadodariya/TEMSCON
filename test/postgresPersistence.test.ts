@@ -189,6 +189,23 @@ describe('PostgreSQL Persistence & Serverless Durability Suite', () => {
     assert.ok(summaryAfter.participantsList.some((p: any) => p.condition === 'EXTENDED_REVIEW' || p.condition === 'REDUCED_REVIEW'));
   });
 
+  it('Simulator Results from PostgreSQL: computes 5-card dashboard from database-persisted session', async (t) => {
+    if (!isDbAvailable) {
+      t.skip('Database unavailable');
+      return;
+    }
+    const results = await store.getSimulatorResults(testSessionCode);
+    assert.ok(results);
+    assert.equal(results.sessionCode, testSessionCode);
+    assert.ok(results.cards.totalApprovals);
+    assert.ok(results.cards.correctDecisions);
+    assert.ok(results.cards.unsafeApprovals);
+    assert.ok(results.cards.medianDecisionTime);
+    assert.ok(results.cards.earlyVsLateReview);
+    assert.equal(results.metadata.practiceExcluded, true);
+    assert.equal(results.metadata.serverAuthoritative, true);
+  });
+
   it('Production Fail-Closed Persistence: server throws when DATABASE_URL is missing in production/Vercel', () => {
     const savedVercel = process.env.VERCEL;
     const savedDbUrl = process.env.DATABASE_URL;

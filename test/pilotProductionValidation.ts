@@ -221,7 +221,21 @@ export async function runPilotValidation() {
   assert.equal(unauthStatus.status, 401, 'Unauthorized session status mutation must return 401');
   console.log(`[PASS] Presenter mutation endpoints strictly reject unauthenticated requests with 401`);
 
-  console.log(`\nALL PHASE 4 PILOT VALIDATION CHECKS PASSED ON PRODUCTION!`);
+  // 12. Simulator Results Dashboard Verification (Phase 4.1)
+  const resultsRes = await fetch(`${PROD_URL}/api/v1/session/results?sessionCode=${sessionCode}`);
+  assert.equal(resultsRes.status, 200, 'Simulator results endpoint must return 200');
+  const resultsData = await resultsRes.json() as any;
+  assert.equal(resultsData.sessionCode, sessionCode);
+  assert.ok(resultsData.cards.totalApprovals, 'Total Approvals card must exist');
+  assert.ok(resultsData.cards.correctDecisions, 'Correct Decisions card must exist');
+  assert.ok(resultsData.cards.unsafeApprovals, 'Unsafe Approvals card must exist');
+  assert.ok(resultsData.cards.medianDecisionTime, 'Median Decision Time card must exist');
+  assert.ok(resultsData.cards.earlyVsLateReview, 'Early vs Late Review card must exist');
+  assert.equal(resultsData.metadata.practiceExcluded, true, 'Practice must be excluded');
+  assert.equal(resultsData.cards.totalApprovals.status, 'AVAILABLE');
+  console.log(`[PASS] Simulator Results Dashboard verified: 5 cards derived from server ground truth with practice excluded`);
+
+  console.log(`\nALL PHASE 4 & 4.1 PILOT VALIDATION CHECKS PASSED ON PRODUCTION!`);
 }
 
 runPilotValidation().catch(err => {

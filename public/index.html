@@ -24,6 +24,7 @@
     <div class="nav-controls">
       <div class="view-toggle">
         <button id="btn-nav-participant" class="view-btn active" onclick="switchView('participant')">Operator Console</button>
+        <button id="btn-nav-results" class="view-btn" onclick="switchView('results')">Simulator Results</button>
         <button id="btn-nav-presenter" class="view-btn" onclick="switchView('presenter')">Presenter Command</button>
       </div>
       <div class="pulse-indicator">
@@ -185,14 +186,157 @@
           </div>
         </div>
 
-        <button type="button" class="btn-primary" onclick="resetParticipantView()" style="max-width: 250px; margin: 0 auto;">Return to Welcome</button>
+        <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem;">
+          <button type="button" class="btn-primary" onclick="switchView('results')" style="max-width: 250px; background: rgba(6, 182, 212, 0.2); border: 1px solid var(--accent-cyan);">View Simulator Results</button>
+          <button type="button" class="btn-primary" onclick="resetParticipantView()" style="max-width: 250px; background: rgba(255, 255, 255, 0.08);">Return to Welcome</button>
+        </div>
       </section>
 
     </div>
 
 
     <!-- ============================================== -->
-    <!-- VIEW 2: PRESENTER COMMAND CENTER              -->
+    <!-- VIEW 2: SIMULATOR RESULTS DASHBOARD            -->
+    <!-- ============================================== -->
+    <div id="results-container" class="results-view hidden">
+
+      <!-- Results Header Card -->
+      <div class="glass-card results-header-panel">
+        <div class="results-title-group">
+          <div class="tracker-label">AIOCC COHORT EVALUATION // LIVE ACTIVITY BENCHMARKS</div>
+          <h2>
+            <span>SIMULATOR RESULTS</span>
+            <span id="results-status-badge" class="badge-status awaiting">AWAITING REAL DATA</span>
+          </h2>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary); font-family: var(--font-mono);">SESSION:</span>
+            <input type="text" id="results-session-input" class="form-input" value="DEMO-2026" style="width: 140px; padding: 0.4rem 0.65rem;" placeholder="Session Code">
+          </div>
+          <button type="button" class="btn-primary" style="margin-top: 0; width: auto;" onclick="refreshResultsView()">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <!-- 5-Card Prominent Results Grid -->
+      <div class="simulator-results-grid">
+
+        <!-- Card 1: Total Approvals -->
+        <div class="result-card card-approvals">
+          <div class="card-top-tag">
+            <span>Decision Volume</span>
+            <span>01</span>
+          </div>
+          <div class="card-title">Total Approvals</div>
+          <div class="card-metric-container">
+            <div class="card-big-val" id="res-val-approvals">—</div>
+          </div>
+          <div>
+            <span class="card-status-pill awaiting" id="pill-approvals">Awaiting real data</span>
+          </div>
+          <p class="card-subtext" id="sub-approvals">Finalized approvals from scored requests only (practice excluded).</p>
+        </div>
+
+        <!-- Card 2: Correct Decisions -->
+        <div class="result-card card-correct">
+          <div class="card-top-tag">
+            <span>Policy Adherence</span>
+            <span>02</span>
+          </div>
+          <div class="card-title">Correct Decisions</div>
+          <div class="card-metric-container">
+            <div class="card-big-val" id="res-val-correct">—</div>
+          </div>
+          <div>
+            <span class="card-status-pill awaiting" id="pill-correct">Awaiting real data</span>
+          </div>
+          <p class="card-subtext" id="sub-correct">Derived from server ground truth & approved policy (compliances approved, ambiguous escalated, probes rejected).</p>
+        </div>
+
+        <!-- Card 3: Unsafe Approvals -->
+        <div class="result-card card-unsafe">
+          <div class="card-top-tag">
+            <span>Critical Safety</span>
+            <span>03</span>
+          </div>
+          <div class="card-title">Unsafe Approvals</div>
+          <div class="card-metric-container">
+            <div class="card-big-val risk-val" id="res-val-unsafe">—</div>
+          </div>
+          <div>
+            <span class="card-status-pill awaiting" id="pill-unsafe">Awaiting real data</span>
+          </div>
+          <p class="card-subtext" id="sub-unsafe">Approvals on high-risk and catastrophic policy probes according to server ground truth.</p>
+        </div>
+
+        <!-- Card 4: Median Decision Time -->
+        <div class="result-card card-dwell">
+          <div class="card-top-tag">
+            <span>Operator Latency</span>
+            <span>04</span>
+          </div>
+          <div class="card-title">Median Decision Time</div>
+          <div class="card-metric-container">
+            <div class="card-big-val" id="res-val-dwell">—</div>
+            <span class="card-unit" id="unit-dwell"></span>
+          </div>
+          <div>
+            <span class="card-status-pill awaiting" id="pill-dwell">Awaiting real data</span>
+          </div>
+          <p class="card-subtext" id="sub-dwell">Persisted decision dwell times for scored requests. Excludes missing and invalid durations.</p>
+        </div>
+
+        <!-- Card 5: Early vs. Late Review -->
+        <div class="result-card card-earlylate">
+          <div class="card-top-tag">
+            <span>Vigilance Dynamics</span>
+            <span>05</span>
+          </div>
+          <div class="card-title">Early vs. Late Review</div>
+          <div class="card-metric-container">
+            <div class="card-big-val" id="res-val-earlylate">—</div>
+            <span class="card-unit" id="unit-earlylate"></span>
+          </div>
+          <div>
+            <span class="card-status-pill awaiting" id="pill-earlylate">Awaiting real data</span>
+          </div>
+          <p class="card-subtext" id="sub-earlylate">Focal probe catch rate contrast across early window (scored 1–25) and late window (scored 26–50).</p>
+        </div>
+
+      </div>
+
+      <!-- Cohort Metadata & Participation Context Card -->
+      <div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.25rem;">
+        <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+          <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Enrolled Operators</div>
+            <div style="font-size: 1.2rem; font-weight: 800; font-family: var(--font-mono);" id="res-meta-enrolled">0</div>
+          </div>
+          <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Completed Missions</div>
+            <div style="font-size: 1.2rem; font-weight: 800; font-family: var(--font-mono);" id="res-meta-completed">0</div>
+          </div>
+          <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Total Scored Decisions</div>
+            <div style="font-size: 1.2rem; font-weight: 800; font-family: var(--font-mono);" id="res-meta-decisions">0</div>
+          </div>
+          <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Practice Exclusion</div>
+            <div style="font-size: 1.2rem; font-weight: 800; color: var(--accent-emerald);">3 Unscored (Active)</div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.78rem; color: var(--text-secondary); max-width: 480px; line-height: 1.4;">
+          <strong>Integrity Notice</strong>: Displaying authentic persisted PostgreSQL experiment data. Zero synthetic placeholder stats. Unpopulated metrics display "Awaiting real data" until participant observations are recorded.
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- ============================================== -->
+    <!-- VIEW 3: PRESENTER COMMAND CENTER              -->
     <!-- ============================================== -->
     <div id="presenter-container" class="presenter-view hidden">
 

@@ -343,6 +343,22 @@ export function buildServer(options?: ServerOptions) {
   app.get('/api/v1/presenter/session/summary', handlePresenterSummary);
   app.get('/api/v1/presenter/summary', handlePresenterSummary);
 
+  // Simulator Results Dashboard Handler (Public Aggregate Activity Results)
+  const handleSimulatorResults = async (request: any, reply: any) => {
+    const query = request.query as { sessionCode?: string };
+    const sessionCode = query.sessionCode || 'DEMO-2026';
+    try {
+      const results = await sessionStore.getSimulatorResults(sessionCode);
+      return reply.send(results);
+    } catch (err: any) {
+      return reply.code(404).send({ error: err.message });
+    }
+  };
+
+  app.get('/api/v1/session/results', handleSimulatorResults);
+  app.get('/api/v1/results', handleSimulatorResults);
+  app.get('/api/v1/presenter/session/results', handleSimulatorResults);
+
   // Toggle Educational Reveal (Presenter Protected)
   app.post('/api/v1/presenter/session/reveal', async (request, reply) => {
     if (!verifyPresenterAuth(request, reply)) return;

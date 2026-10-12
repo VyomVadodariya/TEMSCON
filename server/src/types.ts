@@ -134,6 +134,7 @@ export interface ISessionStore {
   setRevealUnlocked(sessionCode: string, unlocked: boolean): Promise<boolean> | boolean;
   setSessionStatus(sessionCode: string, status: ExperimentSession['status']): Promise<boolean> | boolean;
   getPresenterSummary(sessionCode: string): Promise<any> | any;
+  getSimulatorResults(sessionCode: string): Promise<any> | any;
   close?(): Promise<void>;
 }
 

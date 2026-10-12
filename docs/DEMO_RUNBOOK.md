@@ -78,7 +78,23 @@ While the audience completes scenarios:
 
 ---
 
-## 6. Unlocking the Educational Reveal & Debriefing
+## 6. Simulator Results Activity Dashboard
+
+The platform includes a dedicated, presentation-ready activity results dashboard available at `/#results` (or via the **Simulator Results** navigation toggle).
+
+### The Five Prominent Metric Cards
+
+| Metric Card | Definition & Derivation | Inclusions & Exclusions | Empty / Incomplete State |
+| :--- | :--- | :--- | :--- |
+| **Total Approvals** | Count of finalized `APPROVE` decisions from scored requests. | **Included**: Scored requests ($k \ge 1$).<br/>**Excluded**: Practice items 1–3. | Displays `Awaiting real data` and `—` if zero scored requests recorded. |
+| **Correct Decisions** | Decisions matching server-side ground truth and approved policy:<br/>• Compliant $\to$ `APPROVE`<br/>• Ambiguous $\to$ `ESCALATE`<br/>• Probes $\to$ `REJECT` or `ESCALATE` (Catch). | **Included**: All scored requests.<br/>**Excluded**: Practice items 1–3.<br/>*Derived from server ground truth, never client labels.* | Displays `Awaiting real data` and `—` if zero scored requests recorded. |
+| **Unsafe Approvals** | Approvals on high-risk and catastrophic policy probes according to server ground truth. | **Included**: High-Risk Probes and Catastrophic Probes.<br/>**Excluded**: Practice items 1–3. | Displays `Awaiting real data` and `—` if no probe encounters recorded. Distinguishes $0$ from missing. |
+| **Median Decision Time** | Median dwell time (latency) in **seconds** for scored requests. | **Included**: Valid positive dwell times ($0 < t \le 3600\text{s}$).<br/>**Excluded**: Missing, null, zero, negative, or invalid durations. | Displays `Awaiting real data` and `—` if no valid timing observations exist. |
+| **Early vs. Late Review** | Focal probe catch rate contrast across the early queue window ($k \in [1, 25]$) versus the late queue window ($k \in [26, 50]$). | **Early Window**: Scored $1$ to $25$ ($k_{\text{focal}}=[9, 21]$).<br/>**Late Window**: Scored $26$ to $50$ ($k_{\text{focal}}=[33, 45]$).<br/>*Measures vigilance degradation ($Δ = \text{Late} - \text{Early}$).* | Displays `Awaiting real data` if no probes encountered, or `Partial Data` if late window is incomplete. |
+
+---
+
+## 7. Unlocking the Educational Reveal & Debriefing
 
 Once participants reach the completion screen:
 1. Ensure the presenter key is authorized in the console.

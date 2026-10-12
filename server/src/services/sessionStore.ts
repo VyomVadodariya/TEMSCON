@@ -10,6 +10,7 @@ import {
 } from '../types.js';
 import { generateParticipantQueue } from './sequenceGenerator.js';
 import { computeSessionScore, SCORING_MATRIX } from './scoringEngine.js';
+import { computeSimulatorResults } from './simulatorResults.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -364,6 +365,7 @@ export class SessionStore implements ISessionStore {
       overallMetrics: getAggregateMetrics(participants, !isRevealed),
       conditionAMetrics: isRevealed ? getAggregateMetrics(conditionA, false) : null,
       conditionBMetrics: isRevealed ? getAggregateMetrics(conditionB, false) : null,
+      simulatorResults: computeSimulatorResults(session),
       participantsList: participants.map(p => ({
         id: p.id,
         alias: p.alias,
@@ -375,6 +377,14 @@ export class SessionStore implements ISessionStore {
         completedAt: p.completedAt
       }))
     };
+  }
+
+  public getSimulatorResults(sessionCode: string) {
+    const session = this.getSession(sessionCode);
+    if (!session) {
+      throw new Error(`Session ${sessionCode} not found.`);
+    }
+    return computeSimulatorResults(session);
   }
 
   public exportState(): string {

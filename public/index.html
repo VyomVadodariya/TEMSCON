@@ -203,8 +203,12 @@
           <h2 style="font-size: 1.4rem; font-weight: 800;" id="presenter-session-code-display">DEMO-2026</h2>
         </div>
 
-        <div style="display: flex; gap: 0.75rem; align-items: center;">
-          <input type="text" id="presenter-new-session-code" class="form-input" placeholder="New Code (e.g. COHORT-01)" style="width: 200px;">
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+          <input type="password" id="presenter-auth-key-input" class="form-input" placeholder="Presenter Secret Key" style="width: 180px;" autocomplete="off">
+          <button type="button" class="btn-primary" style="margin-top: 0; width: auto;" onclick="savePresenterKey()">Authorize</button>
+          <span id="presenter-auth-status" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">Key: Not set</span>
+
+          <input type="text" id="presenter-new-session-code" class="form-input" placeholder="New Code (e.g. COHORT-01)" style="width: 170px;">
           <button type="button" class="btn-primary" style="margin-top: 0; width: auto;" onclick="handleCreateSession()">Create Session</button>
           <button type="button" class="btn-primary" style="margin-top: 0; width: auto; background: rgba(255, 255, 255, 0.1);" onclick="refreshPresenterData()">🔄 Refresh</button>
         </div>
@@ -230,8 +234,17 @@
         </div>
       </div>
 
-      <!-- Condition A vs Condition B Live Contrast Cards -->
-      <div class="conditions-contrast-grid">
+      <!-- Masked Contrast Placeholder (Visible when reveal is locked) -->
+      <div id="conditions-contrast-locked-banner" class="glass-card" style="text-align: center; padding: 2rem 1.5rem; border: 1px dashed var(--border-subtle);">
+        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔒</div>
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;">Experimental Contrast Analysis Masked</h3>
+        <p style="color: var(--text-secondary); font-size: 0.88rem; max-width: 620px; margin: 0 auto; line-height: 1.5;">
+          Condition disaggregation, focal probe catch rates, and habituation contrasts are hidden during active operations to preserve experimental integrity. The presenter can unlock scientific debriefing once all runs conclude.
+        </p>
+      </div>
+
+      <!-- Condition A vs Condition B Live Contrast Cards (Hidden until revealUnlocked is true) -->
+      <div id="conditions-contrast-grid" class="conditions-contrast-grid hidden">
         <!-- Condition A Card -->
         <div class="condition-card cond-a">
           <div class="condition-header">
@@ -319,7 +332,7 @@
           <thead>
             <tr>
               <th>Operator Alias</th>
-              <th>Experimental Condition</th>
+              <th id="th-roster-condition">Cohort Assignment (Masked)</th>
               <th>Progress</th>
               <th>Status</th>
             </tr>

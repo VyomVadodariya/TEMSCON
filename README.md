@@ -51,13 +51,28 @@ npm run build
 ```
 
 ### Start the Application
+
+The server requires a presenter key for all administrative and reveal operations. The server fails closed on startup in production if `PRESENTER_KEY` is not provided.
+
 ```bash
+# Configure presenter secret key in your environment
+# Linux / macOS:
+export PRESENTER_KEY="your-secure-presenter-token"
+
+# Windows (PowerShell):
+$env:PRESENTER_KEY="your-secure-presenter-token"
+
+# Windows (CMD):
+set PRESENTER_KEY="your-secure-presenter-token"
+
 # Production Mode
 npm start
 
 # Development Mode (with hot-reload)
 npm run dev
 ```
+
+> **Security & Credential Rotation Notice**: The application obtains presenter authentication strictly from the `PRESENTER_KEY` environment variable and never ships known default credentials. The literal `AIOCC_PRESENTER_SECRET_2026` was an insecure temporary test fixture from Phase 2; it is completely deprecated and rejected by the server. If this literal was ever used on any host, it must be rotated immediately.
 
 The application will start on `http://localhost:3000`:
 - **Operator / Participant Workstation**: [`http://localhost:3000/`](http://localhost:3000/)
@@ -67,10 +82,10 @@ The application will start on `http://localhost:3000`:
 
 ## 4. Test Suite Execution
 
-All unit, sequence feasibility, scoring regression, and end-to-end integration tests run via:
+All unit, sequence feasibility, scoring regression, security, privacy, and end-to-end integration tests run via:
 
 ```bash
-# Execute entire test suite (24 tests across 6 suites)
+# Execute entire test suite (26 tests across 6 suites)
 npm test
 
 # Run scoring regression tests (all 6 canonical worked examples + boundary cases)
@@ -87,13 +102,13 @@ npm run test:load
 ```
 
 ### Verified Test Results Summary
-- `test/scoringEngine.test.ts`: 7 tests passing (`SOS = 100.00` for flawless operator, `SOS = 0.00` for blind approver, compounding penalty progression $M=0 \dots 4$).
-- `test/sequenceGenerator.test.ts`: 4 tests passing (exact 3 practice items, 50 scored items, $k = [9, 21, 33, 45]$ focal positions, $L_{\text{local}}=8$ vs $L_{\text{local}}=1$, configurable range 30–80).
-- `test/e2e.test.ts`: 5 tests passing (health checks, balanced participant enrollment, client payload answer scrubbing, idempotent retry deduplication, presenter session creation and reveal toggling).
-- `test/securityAndPrivacy.test.ts`: 4 tests passing (zero ground truth/probe flags leaked to client, mutating presenter endpoints protected by `x-presenter-key`, hypothesis privacy masking before reveal, sequence mismatch validation).
-- `test/reliabilityAndPersistence.test.ts`: 3 tests passing (idempotent duplicate submission handling, uncompleted session timeouts, state serialization and restoration).
-- `test/fullSessionSimulation.test.ts`: 1 test passing (53-request full lifecycle simulation of Complacent vs Vigilant operators, verifying condition-level contrast and educational reveal).
-- `test/loadTest.ts`: Measured empirical load test (50 VUs, $p95 = 4.56\text{ ms}$, 0% error rate). Note: distributed 200-participant load target remains an unverified provisional target pending Phase 5 k6 testing.
+- `test/scoringEngine.test.ts` (7 tests passing): Canonical Scoring Contract v1.0.0 (`SOS = 100.00` for flawless operator, `SOS = 0.00` for blind approver, compounding catastrophic penalty progression $M=0 \dots 4$).
+- `test/sequenceGenerator.test.ts` (4 tests passing): Option A sequence allocation (exact 3 practice items, 50 scored items, $k = [9, 21, 33, 45]$ focal probe positions, $L_{\text{local}}=8$ vs $L_{\text{local}}=1$, configurable range 30–80).
+- `test/e2e.test.ts` (5 tests passing): Health checks, balanced participant enrollment, client payload answer scrubbing, idempotent retry deduplication, presenter session creation and reveal toggling.
+- `test/securityAndPrivacy.test.ts` (6 tests passing): Zero ground truth/probe flags leaked to client, mutating presenter endpoints protected by `x-presenter-key`, fail-closed credential behavior in missing key/production states, hypothesis privacy masking before reveal (even when session status is CONCLUDED), sequence mismatch validation, and UI template hardening.
+- `test/reliabilityAndPersistence.test.ts` (3 tests passing): Idempotent duplicate submission handling, uncompleted session timeouts, state serialization and restoration.
+- `test/fullSessionSimulation.test.ts` (1 test passing): 53-request full lifecycle simulation of Complacent vs Vigilant operators, verifying condition-level contrast and educational reveal.
+- `test/loadTest.ts`: Measured empirical load test (25 VUs $\times$ 20 decisions = 500 requests at 4,098 req/sec, $p95 = 13\text{ ms}$, 0% error rate). Distributed 200-participant load target across real networks remains an unverified provisional target pending Phase 5 k6 testing.
 
 ---
 
@@ -101,8 +116,10 @@ npm run test:load
 
 1. **Open Presenter Command Center**:
    - Navigate to [`http://localhost:3000/#presenter`](http://localhost:3000/#presenter).
+   - Enter your configured `PRESENTER_KEY` into the Presenter Secret Key field and click **Authorize**.
    - Session `DEMO-2026` is pre-seeded and active.
-   - Observe the live metrics HUD: Enrolled Operators, Condition A vs B split, and the locked Educational Reveal card.
+   - Observe the live metrics HUD: Enrolled Operators, Completed Sessions, Cohort Average SOS, and Catastrophic Passes.
+   - **Hypothesis Privacy Safeguard**: Condition contrast cards, condition labels, and focal probe catch rates are strictly masked behind a locked banner during active operations to protect experimental double-blind integrity.
 
 2. **Open Participant Console**:
    - In a second browser window, navigate to [`http://localhost:3000/`](http://localhost:3000/).
@@ -111,12 +128,13 @@ npm run test:load
    - Advance through operational requests: inspect the Scenario Dossier, examine parameters and diagnostic system logs, evaluate the AI recommendation, and submit `APPROVE`, `REJECT`, or `ESCALATE` decisions.
 
 3. **Demonstrate Automation Complacency**:
-   - Notice how approving repeated compliant routine requests creates a natural tendency to trust high-confidence AI recommendations.
-   - Intercept critical policy probes (such as unverified offshore banking switches or database drop cascades) that the AI soothingly recommends approving.
+   - Notice how approving repeated compliant routine requests creates cognitive habituation to trust high-confidence AI recommendations.
+   - Intercept critical policy probes (such as unverified offshore banking switches or database drop cascades) that the AI recommendation incorrectly marks as safe.
 
-4. **Review Live Presenter Dashboard & Educational Reveal**:
-   - Return to the Presenter window to see live participant progress and condition-level catch rate statistics updated in real-time.
-   - Click **"Unlock Educational Reveal"** to reveal the research rationale, explaining how local exposure contrast ($L_{\text{local}}=8$ vs $L_{\text{local}}=1$) governs human oversight vigilance.
+4. **Review Live Presenter Dashboard & Unlock Educational Reveal**:
+   - Return to the Presenter window to see live cohort progress and completed request counts. Notice that condition assignments in the operator roster remain masked as `Blind Assignment (Active)`.
+   - Once all participant sessions are concluded, click **"Unlock Educational Reveal"**.
+   - The dashboard dynamically unlocks the Condition A (`EXTENDED_REVIEW`, $L_{\text{local}}=8$) vs Condition B (`REDUCED_REVIEW`, $L_{\text{local}}=1$) contrast cards, displays condition-disaggregated focal catch rates, unmasks operator assignments, and opens the scientific debriefing panel explaining human vigilance decay.
 
 ---
 
@@ -136,25 +154,29 @@ npm run test:load
 │   └── TEST_STRATEGY.md            # Test planning & acceptance criteria
 ├── server/
 │   ├── src/
-│   │   ├── index.ts                # Application server entry point
-│   │   ├── server.ts               # Fastify routes, static asset serving, and middleware
+│   │   ├── index.ts                # Application server entry point with fail-closed key validation
+│   │   ├── server.ts               # Fastify routes, static asset serving, and presenter auth
 │   │   ├── types.ts                # Domain models, scoring contracts, and session types
 │   │   ├── scenarios/
 │   │   │   └── scenarioBank.ts     # 106 reviewed synthetic enterprise scenario templates
 │   │   └── services/
 │   │       ├── sequenceGenerator.ts # Option A sequence allocation engine
 │   │       ├── scoringEngine.ts     # Canonical Scoring Contract v1.0.0
-│   │       └── sessionStore.ts      # Server-authoritative state store with idempotency
+│   │       └── sessionStore.ts      # Server-authoritative state store with hypothesis privacy
 ├── public/
-│   ├── index.html                  # Responsive Single Page Application
+│   ├── index.html                  # Responsive Single Page Application with masked contrast view
 │   ├── css/
 │   │   └── styles.css              # Obsidian dark theme, glassmorphism, micro-animations
 │   └── js/
-│       └── app.js                  # Participant and Presenter client runtime
+│       └── app.js                  # Participant and Presenter client runtime with credential management
 └── test/
     ├── scoringEngine.test.ts       # 7 canonical scoring verification tests
     ├── sequenceGenerator.test.ts   # 4 Option A sequence allocation tests
-    └── e2e.test.ts                 # 5 end-to-end API integration tests
+    ├── e2e.test.ts                 # 5 end-to-end API integration tests
+    ├── securityAndPrivacy.test.ts  # 6 security, privacy, and hypothesis protection tests
+    ├── reliabilityAndPersistence.test.ts # 3 reliability, deduplication, and persistence tests
+    ├── fullSessionSimulation.test.ts # 1 complete multi-participant end-to-end simulation
+    └── loadTest.ts                 # Measured empirical in-process load test
 ```
 
 ---

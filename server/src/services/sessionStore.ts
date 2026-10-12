@@ -258,14 +258,16 @@ export class SessionStore {
     const conditionA = participants.filter(p => p.condition === 'EXTENDED_REVIEW');
     const conditionB = participants.filter(p => p.condition === 'REDUCED_REVIEW');
 
-    const getAggregateMetrics = (cohort: ParticipantSession[]) => {
+    const isRevealed = Boolean(session.revealUnlocked);
+
+    const getAggregateMetrics = (cohort: ParticipantSession[], maskProbeRates: boolean = false) => {
       if (cohort.length === 0) {
         return {
           count: 0,
           completedCount: 0,
           avgScore: 0,
-          avgFocalCatchRate: 0,
-          avgContextCatchRate: 0,
+          avgFocalCatchRate: maskProbeRates ? null : 0,
+          avgContextCatchRate: maskProbeRates ? null : 0,
           totalCatastrophicApprovals: 0
         };
       }
@@ -287,13 +289,11 @@ export class SessionStore {
         count: cohort.length,
         completedCount: cohort.filter(p => p.currentQueueIndex > p.queue.length).length,
         avgScore: +(scoreSum / cohort.length).toFixed(2),
-        avgFocalCatchRate: +(focalCatchSum / cohort.length).toFixed(4),
-        avgContextCatchRate: +(contextCatchSum / cohort.length).toFixed(4),
+        avgFocalCatchRate: maskProbeRates ? null : +(focalCatchSum / cohort.length).toFixed(4),
+        avgContextCatchRate: maskProbeRates ? null : +(contextCatchSum / cohort.length).toFixed(4),
         totalCatastrophicApprovals: catAppSum
       };
     };
-
-    const isRevealed = session.revealUnlocked || session.status === 'CONCLUDED';
 
     return {
       sessionCode: session.sessionCode,
@@ -302,9 +302,9 @@ export class SessionStore {
       revealUnlocked: session.revealUnlocked,
       totalEnrolled,
       completedCount: completed.length,
-      overallMetrics: getAggregateMetrics(participants),
-      conditionAMetrics: isRevealed ? getAggregateMetrics(conditionA) : null,
-      conditionBMetrics: isRevealed ? getAggregateMetrics(conditionB) : null,
+      overallMetrics: getAggregateMetrics(participants, !isRevealed),
+      conditionAMetrics: isRevealed ? getAggregateMetrics(conditionA, false) : null,
+      conditionBMetrics: isRevealed ? getAggregateMetrics(conditionB, false) : null,
       participantsList: participants.map(p => ({
         id: p.id,
         alias: p.alias,

@@ -1,4 +1,15 @@
 import { buildServer } from './server.js';
+const isProduction = process.env.NODE_ENV === 'production';
+const configuredPresenterKey = process.env.PRESENTER_KEY || '';
+
+if (!configuredPresenterKey) {
+  if (isProduction) {
+    console.error('FATAL: PRESENTER_KEY environment variable is required in production mode. Refusing to start.');
+    process.exit(1);
+  } else {
+    console.warn('[SECURITY NOTICE] PRESENTER_KEY environment variable is not set. Presenter actions will fail closed (401 Unauthorized) until a key is configured.');
+  }
+}
 
 const server = buildServer();
 const PORT = Number(process.env.PORT) || 3000;

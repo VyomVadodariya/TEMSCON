@@ -37,6 +37,7 @@ function switchView(viewName) {
     btnPart.classList.remove('active');
     containerPres.classList.remove('hidden');
     containerPart.classList.add('hidden');
+    updatePresenterAuthIndicator();
     refreshPresenterData();
     presenterPollTimer = setInterval(refreshPresenterData, 3000);
   }
@@ -45,6 +46,8 @@ function switchView(viewName) {
 // Check URL hash for direct presenter linking
 if (window.location.hash === '#presenter') {
   switchView('presenter');
+} else {
+  updatePresenterAuthIndicator();
 }
 
 // ==========================================
@@ -269,55 +272,64 @@ async function refreshPresenterData() {
     document.getElementById('stat-avg-score').innerText = data.overallMetrics.avgScore ? `${data.overallMetrics.avgScore}` : '--';
     document.getElementById('stat-total-catastrophic').innerText = data.overallMetrics.totalCatastrophicApprovals;
 
-    // Condition Metrics (Masked until Reveal Unlocked)
-    if (data.conditionAMetrics && data.conditionBMetrics) {
-      document.getElementById('cond-a-count').innerText = data.conditionAMetrics.count;
-      document.getElementById('cond-a-avg-score').innerText = data.conditionAMetrics.count > 0 ? `${data.conditionAMetrics.avgScore}` : '--';
-      document.getElementById('cond-a-focal-catch').innerText = data.conditionAMetrics.count > 0 ? `${(data.conditionAMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
-      document.getElementById('cond-a-cat-approvals').innerText = data.conditionAMetrics.totalCatastrophicApprovals;
-
-      document.getElementById('cond-b-count').innerText = data.conditionBMetrics.count;
-      document.getElementById('cond-b-avg-score').innerText = data.conditionBMetrics.count > 0 ? `${data.conditionBMetrics.avgScore}` : '--';
-      document.getElementById('cond-b-focal-catch').innerText = data.conditionBMetrics.count > 0 ? `${(data.conditionBMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
-      document.getElementById('cond-b-cat-approvals').innerText = data.conditionBMetrics.totalCatastrophicApprovals;
-    } else {
-      document.getElementById('cond-a-count').innerText = 'Masked';
-      document.getElementById('cond-a-avg-score').innerText = '🔒 Masked';
-      document.getElementById('cond-a-focal-catch').innerText = '🔒 Masked';
-      document.getElementById('cond-a-cat-approvals').innerText = '🔒 Masked';
-
-      document.getElementById('cond-b-count').innerText = 'Masked';
-      document.getElementById('cond-b-avg-score').innerText = '🔒 Masked';
-      document.getElementById('cond-b-focal-catch').innerText = '🔒 Masked';
-      document.getElementById('cond-b-cat-approvals').innerText = '🔒 Masked';
-    }
-
-    // Reveal State
+    // Reveal State & Hypothesis Privacy Masking
     const revealBtn = document.getElementById('btn-toggle-reveal');
     const revealBody = document.getElementById('reveal-content-body');
+    const contrastLockedBanner = document.getElementById('conditions-contrast-locked-banner');
+    const contrastGrid = document.getElementById('conditions-contrast-grid');
+    const thCondition = document.getElementById('th-roster-condition');
+
     if (data.revealUnlocked) {
-      revealBtn.innerText = 'Educational Reveal Unlocked (Active)';
-      revealBtn.style.background = 'rgba(16, 185, 129, 0.4)';
-      revealBody.classList.remove('hidden');
+      // Reveal is UNLOCKED
+      if (contrastLockedBanner) contrastLockedBanner.classList.add('hidden');
+      if (contrastGrid) contrastGrid.classList.remove('hidden');
+      if (revealBtn) {
+        revealBtn.innerText = 'Lock Educational Reveal';
+        revealBtn.style.background = 'rgba(16, 185, 129, 0.4)';
+      }
+      if (revealBody) revealBody.classList.remove('hidden');
+      if (thCondition) thCondition.innerText = 'Experimental Condition (Revealed)';
+
+      // Populate Condition A and B Metrics
+      if (data.conditionAMetrics) {
+        document.getElementById('cond-a-count').innerText = data.conditionAMetrics.count;
+        document.getElementById('cond-a-avg-score').innerText = data.conditionAMetrics.count > 0 ? `${data.conditionAMetrics.avgScore}` : '--';
+        document.getElementById('cond-a-focal-catch').innerText = data.conditionAMetrics.count > 0 ? `${(data.conditionAMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
+        document.getElementById('cond-a-cat-approvals').innerText = data.conditionAMetrics.totalCatastrophicApprovals;
+      }
+      if (data.conditionBMetrics) {
+        document.getElementById('cond-b-count').innerText = data.conditionBMetrics.count;
+        document.getElementById('cond-b-avg-score').innerText = data.conditionBMetrics.count > 0 ? `${data.conditionBMetrics.avgScore}` : '--';
+        document.getElementById('cond-b-focal-catch').innerText = data.conditionBMetrics.count > 0 ? `${(data.conditionBMetrics.avgFocalCatchRate * 100).toFixed(1)}%` : '--';
+        document.getElementById('cond-b-cat-approvals').innerText = data.conditionBMetrics.totalCatastrophicApprovals;
+      }
     } else {
-      revealBtn.innerText = 'Unlock Educational Reveal';
-      revealBtn.style.background = '';
-      revealBody.classList.add('hidden');
+      // Reveal is LOCKED / MASKED
+      if (contrastLockedBanner) contrastLockedBanner.classList.remove('hidden');
+      if (contrastGrid) contrastGrid.classList.add('hidden');
+      if (revealBtn) {
+        revealBtn.innerText = 'Unlock Educational Reveal';
+        revealBtn.style.background = '';
+      }
+      if (revealBody) revealBody.classList.add('hidden');
+      if (thCondition) thCondition.innerText = 'Cohort Assignment (Masked)';
     }
 
     // Participants Roster
     const tbody = document.getElementById('roster-table-body');
-    if (data.participantsList.length === 0) {
+    if (!data.participantsList || data.participantsList.length === 0) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No participants currently enrolled.</td></tr>';
     } else {
       tbody.innerHTML = '';
       data.participantsList.forEach(p => {
         const tr = document.createElement('tr');
-        let condBadge = '<span style="color: var(--text-muted);">Operator (Masked)</span>';
-        if (p.condition === 'EXTENDED_REVIEW') {
-          condBadge = '<span style="color: var(--accent-rose); font-weight:700;">Condition A (Extended)</span>';
-        } else if (p.condition === 'REDUCED_REVIEW') {
-          condBadge = '<span style="color: var(--accent-emerald); font-weight:700;">Condition B (Reduced)</span>';
+        let condBadge = '<span class="badge-practice" style="background: rgba(148, 163, 184, 0.15); color: var(--text-muted);">Blind Assignment (Active)</span>';
+        if (data.revealUnlocked) {
+          if (p.condition === 'EXTENDED_REVIEW') {
+            condBadge = '<span style="color: var(--accent-rose); font-weight:700;">Condition A (Extended)</span>';
+          } else if (p.condition === 'REDUCED_REVIEW') {
+            condBadge = '<span style="color: var(--accent-emerald); font-weight:700;">Condition B (Reduced)</span>';
+          }
         }
 
         const statusBadge = p.isCompleted 
@@ -338,9 +350,55 @@ async function refreshPresenterData() {
   }
 }
 
-const PRESENTER_KEY = 'AIOCC_PRESENTER_SECRET_2026';
+// ==========================================
+// PRESENTER AUTHENTICATION & CONTROLS
+// ==========================================
+
+function getPresenterKey() {
+  return sessionStorage.getItem('aiocc_presenter_key') || '';
+}
+
+function updatePresenterAuthIndicator() {
+  const statusEl = document.getElementById('presenter-auth-status');
+  const inputEl = document.getElementById('presenter-auth-key-input');
+  const key = getPresenterKey();
+  if (statusEl) {
+    if (key) {
+      statusEl.innerText = 'Key: Configured';
+      statusEl.style.color = 'var(--accent-emerald)';
+    } else {
+      statusEl.innerText = 'Key: Not set';
+      statusEl.style.color = 'var(--text-muted)';
+    }
+  }
+  if (inputEl && key && !inputEl.value) {
+    inputEl.value = key;
+  }
+}
+
+function savePresenterKey() {
+  const inputEl = document.getElementById('presenter-auth-key-input');
+  if (!inputEl) return;
+  const val = inputEl.value.trim();
+  if (val) {
+    sessionStorage.setItem('aiocc_presenter_key', val);
+    updatePresenterAuthIndicator();
+    alert('Presenter authentication key saved for this browser session.');
+  } else {
+    sessionStorage.removeItem('aiocc_presenter_key');
+    updatePresenterAuthIndicator();
+    alert('Presenter key cleared.');
+  }
+}
 
 async function handleCreateSession() {
+  const presenterKey = getPresenterKey();
+  if (!presenterKey) {
+    alert('Presenter Key required. Please enter and authorize your key in the top control panel.');
+    document.getElementById('presenter-auth-key-input')?.focus();
+    return;
+  }
+
   const input = document.getElementById('presenter-new-session-code');
   const sessionCode = input.value.trim().toUpperCase();
   if (!sessionCode) {
@@ -353,12 +411,17 @@ async function handleCreateSession() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-presenter-key': PRESENTER_KEY
+        'x-presenter-key': presenterKey
       },
       body: JSON.stringify({ sessionCode, scoredRequestCount: 50 })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to create session');
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error('Authentication failed: Invalid presenter key. Please check the key configured on the server.');
+      }
+      throw new Error(data.error || 'Failed to create session');
+    }
 
     document.getElementById('presenter-session-code-display').innerText = data.sessionCode;
     input.value = '';
@@ -369,20 +432,33 @@ async function handleCreateSession() {
 }
 
 async function toggleEducationalReveal() {
+  const presenterKey = getPresenterKey();
+  if (!presenterKey) {
+    alert('Presenter Key required to toggle reveal. Please enter and authorize your key in the top control panel.');
+    document.getElementById('presenter-auth-key-input')?.focus();
+    return;
+  }
+
   const sessionCode = document.getElementById('presenter-session-code-display').innerText.trim() || 'DEMO-2026';
-  const isCurrentlyUnlocked = !document.getElementById('reveal-content-body').classList.contains('hidden');
+  const contrastGrid = document.getElementById('conditions-contrast-grid');
+  const isCurrentlyUnlocked = contrastGrid && !contrastGrid.classList.contains('hidden');
 
   try {
     const res = await fetch('/api/v1/presenter/session/reveal', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-presenter-key': PRESENTER_KEY
+        'x-presenter-key': presenterKey
       },
       body: JSON.stringify({ sessionCode, unlocked: !isCurrentlyUnlocked })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error('Authentication failed: Invalid presenter key. Please check the key configured on the server.');
+      }
+      throw new Error(data.error || 'Failed to toggle reveal');
+    }
 
     await refreshPresenterData();
   } catch (err) {

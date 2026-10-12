@@ -5,9 +5,10 @@ import { FastifyInstance } from 'fastify';
 
 describe('AIOCC End-to-End API Integration Suite', () => {
   let app: FastifyInstance;
+  const TEST_E2E_PRESENTER_KEY = 'test-e2e-isolated-auth-token-4491';
 
   before(async () => {
-    app = buildServer();
+    app = buildServer({ presenterKey: TEST_E2E_PRESENTER_KEY });
     await app.ready();
   });
 
@@ -120,13 +121,11 @@ describe('AIOCC End-to-End API Integration Suite', () => {
   });
 
   it('Presenter Workflow: create session, aggregate summary, reveal control', async () => {
-    const PRESENTER_KEY = 'AIOCC_PRESENTER_SECRET_2026';
-
     // 1. Create Session
     const createRes = await app.inject({
       method: 'POST',
       url: '/api/v1/presenter/session/create',
-      headers: { 'x-presenter-key': PRESENTER_KEY },
+      headers: { 'x-presenter-key': TEST_E2E_PRESENTER_KEY },
       payload: { sessionCode: 'COHORT-88', scoredRequestCount: 40 }
     });
     assert.equal(createRes.statusCode, 201);
@@ -148,7 +147,7 @@ describe('AIOCC End-to-End API Integration Suite', () => {
     const revRes = await app.inject({
       method: 'POST',
       url: '/api/v1/presenter/session/reveal',
-      headers: { 'x-presenter-key': PRESENTER_KEY },
+      headers: { 'x-presenter-key': TEST_E2E_PRESENTER_KEY },
       payload: { sessionCode: 'COHORT-88', unlocked: true }
     });
     assert.equal(revRes.statusCode, 200);

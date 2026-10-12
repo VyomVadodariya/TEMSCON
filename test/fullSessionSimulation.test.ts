@@ -5,10 +5,10 @@ import { FastifyInstance } from 'fastify';
 
 describe('Full Multi-Participant Session Simulation with Presenter Reveal', () => {
   let app: FastifyInstance;
-  const PRESENTER_KEY = 'AIOCC_PRESENTER_SECRET_2026';
+  const TEST_SIM_PRESENTER_KEY = 'test-sim-isolated-auth-token-7629';
 
   before(async () => {
-    app = buildServer();
+    app = buildServer({ presenterKey: TEST_SIM_PRESENTER_KEY });
     await app.ready();
   });
 
@@ -23,7 +23,7 @@ describe('Full Multi-Participant Session Simulation with Presenter Reveal', () =
     const createRes = await app.inject({
       method: 'POST',
       url: '/api/v1/presenter/session/create',
-      headers: { 'x-presenter-key': PRESENTER_KEY },
+      headers: { 'x-presenter-key': TEST_SIM_PRESENTER_KEY },
       payload: { sessionCode, scoredRequestCount: 50 }
     });
     assert.equal(createRes.statusCode, 201);
@@ -133,12 +133,16 @@ describe('Full Multi-Participant Session Simulation with Presenter Reveal', () =
     assert.equal(presDataLocked.completedCount, 2);
     assert.equal(presDataLocked.conditionAMetrics, null, 'Must be masked before reveal');
     assert.equal(presDataLocked.conditionBMetrics, null, 'Must be masked before reveal');
+    assert.equal(presDataLocked.overallMetrics.avgFocalCatchRate, null, 'Overall focal catch rate must be masked before reveal');
+    assert.equal(presDataLocked.overallMetrics.avgContextCatchRate, null, 'Overall context catch rate must be masked before reveal');
+    assert.equal(presDataLocked.participantsList[0].condition, 'MASKED', 'Participant condition must be masked before reveal');
+    assert.equal(presDataLocked.participantsList[1].condition, 'MASKED', 'Participant condition must be masked before reveal');
 
     // 7. Presenter unlocks reveal
     const unlockRes = await app.inject({
       method: 'POST',
       url: '/api/v1/presenter/session/reveal',
-      headers: { 'x-presenter-key': PRESENTER_KEY },
+      headers: { 'x-presenter-key': TEST_SIM_PRESENTER_KEY },
       payload: { sessionCode, unlocked: true }
     });
     assert.equal(unlockRes.statusCode, 200);

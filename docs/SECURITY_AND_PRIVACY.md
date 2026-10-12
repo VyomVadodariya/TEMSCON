@@ -111,4 +111,10 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ### 5.3 Input Sanitization & Markdown Injection Defense
 - Scenario policies and logs may contain markdown formatted clauses.
-- All markdown rendering in the React client is parsed through `DOMPurify` to eliminate any Cross-Site Scripting (XSS) vectors or javascript protocol links.
+- All markdown rendering in the client is parsed cleanly to eliminate any Cross-Site Scripting (XSS) vectors or javascript protocol links.
+
+### 5.4 Presenter Authentication & Hypothesis Privacy Controls
+- **Environment-Derived Secret**: Presenter authentication is strictly enforced via the `PRESENTER_KEY` environment variable. The application never ships default fallback credentials.
+- **Fail-Closed Architecture**: If `PRESENTER_KEY` is not provided in a production environment (`NODE_ENV === 'production'`), server initialization immediately throws a fatal exception and halts. In non-production environments, all mutating presenter routes fail closed (`401 Unauthorized`).
+- **Credential Rotation Policy**: Any previous development fixture credentials (such as the legacy Phase 2 literal `AIOCC_PRESENTER_SECRET_2026`) are strictly rejected and must be immediately rotated if ever used on an active deployment. Actual secret values are never printed to console logs or error outputs.
+- **Hypothesis Privacy & Experimental Double-Blind Protection**: Prior to the presenter explicitly toggling `revealUnlocked: true`, the API strictly masks condition-disaggregated metrics (`conditionAMetrics: null`, `conditionBMetrics: null`), focal probe catch rates, and participant condition assignments (`condition: 'MASKED'`). Concluding or pausing the session does not disclose condition-level metrics. The presenter interface hides all condition contrast cards and habituation titles until the activity concludes and the reveal is explicitly unlocked.

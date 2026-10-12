@@ -13,17 +13,17 @@ interface LatencyResult {
 }
 
 export async function runMeasuredLoadTest(concurrentUsers = 25, requestsPerUser = 20): Promise<LatencyResult> {
-  const app = buildServer();
+  const TEST_LOAD_PRESENTER_KEY = 'test-load-isolated-auth-token-9182';
+  const app = buildServer({ presenterKey: TEST_LOAD_PRESENTER_KEY });
   await app.ready();
 
   const sessionCode = `PERF-TEST-${Date.now()}`;
-  const PRESENTER_KEY = 'AIOCC_PRESENTER_SECRET_2026';
 
   // 1. Create Session
   await app.inject({
     method: 'POST',
     url: '/api/v1/presenter/session/create',
-    headers: { 'x-presenter-key': PRESENTER_KEY },
+    headers: { 'x-presenter-key': TEST_LOAD_PRESENTER_KEY },
     payload: { sessionCode, scoredRequestCount: 50 }
   });
 

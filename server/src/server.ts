@@ -9,7 +9,24 @@ import { DecisionAction } from './types.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export function buildServer() {
+export interface ServerOptions {
+  presenterKey?: string;
+  isProduction?: boolean;
+}
+
+export function buildServer(options?: ServerOptions) {
+  const isProduction = options?.isProduction !== undefined
+    ? options.isProduction
+    : process.env.NODE_ENV === 'production';
+
+  const presenterKey = options?.presenterKey !== undefined
+    ? options.presenterKey
+    : (process.env.PRESENTER_KEY || '');
+
+  if (isProduction && (!presenterKey || presenterKey.trim() === '')) {
+    throw new Error('FATAL SECURITY ERROR: PRESENTER_KEY environment variable is required in production. Application will not start without a configured presenter credential.');
+  }
+
   const app = fastify({
     logger: false, // Clean console output for tests
     trustProxy: true
@@ -133,11 +150,14 @@ export function buildServer() {
   // PRESENTER / ADMIN ROUTES
   // ==========================================
 
-  const PRESENTER_KEY = process.env.PRESENTER_KEY || 'AIOCC_PRESENTER_SECRET_2026';
   const verifyPresenterAuth = (request: any, reply: any): boolean => {
+    if (!presenterKey || presenterKey.trim() === '') {
+      reply.code(401).send({ error: 'Unauthorized: Presenter authentication is disabled because PRESENTER_KEY is not configured on this server.' });
+      return false;
+    }
     const rawHeader = request.headers['x-presenter-key'] || request.headers['authorization'];
     const key = typeof rawHeader === 'string' ? rawHeader.replace(/^Bearer\s+/i, '').trim() : '';
-    if (!key || key !== PRESENTER_KEY) {
+    if (!key || key !== presenterKey) {
       reply.code(401).send({ error: 'Unauthorized: Valid presenter key required' });
       return false;
     }

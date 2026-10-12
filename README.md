@@ -108,10 +108,10 @@ You can use any managed PostgreSQL provider (e.g., [Neon.tech](https://neon.tech
 
 #### Step 3: Automated Database Migration & URL Verification
 - On the first incoming request, `api/index.ts` automatically runs schema migrations (`CREATE TABLE IF NOT EXISTS aiocc_sessions, aiocc_participants, aiocc_decisions`) and pre-seeds session `DEMO-2026`.
-- Verify the public HTTPS URL:
-  - **Health Check**: `https://<your-project>.vercel.app/health` -> returns `{"status":"UP","service":"AIOCC-Backend","persistence":"PostgreSQL"}`.
-  - **Operator Interface**: `https://<your-project>.vercel.app/`
-  - **Presenter Console**: `https://<your-project>.vercel.app/#presenter`
+- **Live Verified Deployment**:
+  - **Health Check**: [`https://temscon-three.vercel.app/health`](https://temscon-three.vercel.app/health) -> returns `{"status":"UP","service":"AIOCC-Backend","persistence":"PostgreSQL"}`.
+  - **Operator Interface**: [`https://temscon-three.vercel.app/`](https://temscon-three.vercel.app/)
+  - **Presenter Console**: [`https://temscon-three.vercel.app/#presenter`](https://temscon-three.vercel.app/#presenter)
 
 > **Serverless Persistence Guarantee**: The application refuses to silently fall back to ephemeral container/lambda disk storage in production. If `DATABASE_URL` is omitted in Vercel or production mode, startup fails closed with `FATAL PERSISTENCE ERROR`.
 

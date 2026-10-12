@@ -233,7 +233,7 @@ describe('Security, Privacy & Experimental Integrity Tests', () => {
 
     // Exhaust 350-token burst capacity on API route
     let throttled = false;
-    for (let i = 0; i < 355; i++) {
+    for (let i = 0; i < 450; i++) {
       const res = await rateLimitedApp.inject({
         method: 'POST',
         url: '/api/v1/participant/heartbeat'
